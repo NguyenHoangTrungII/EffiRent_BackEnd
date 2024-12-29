@@ -23,8 +23,8 @@ using EffiAP.Application.Services.Messaging;
 using EffiHR.Infrastructure.Data;
 using FluentAssertions.Common;
 using EffiHR.Infrastructure.Middlewares;
-using Microsoft.AspNetCore.Session;
 using Microsoft.Extensions.Options;
+using EffiRent.Domain.ViewModels.Users;
 
 
 
@@ -39,7 +39,7 @@ var builder = WebApplication.CreateBuilder(args);
 #region Inject Services
 
 builder.Services.AddIdentity<IdentityUser, IdentityRole>()
-    .AddEntityFrameworkStores<EffiAPContext>()
+    .AddEntityFrameworkStores<EffiRentContext>()
     .AddDefaultTokenProviders();
 
 
@@ -47,7 +47,7 @@ builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBeh
 
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-builder.Services.AddDbContext<EffiAPContext>(options =>
+builder.Services.AddDbContext<EffiRentContext>(options =>
     options.UseSqlServer(connectionString));
 
 
@@ -59,6 +59,10 @@ builder.Services.AddMediatR(cfg =>
 
 //Add FluentValidation    
 ValidatorOptions.Global.DefaultClassLevelCascadeMode = CascadeMode.Stop;
+
+//Mail setting
+builder.Services.Configure<MailSetting>(builder.Configuration.GetSection("EmailSettings"));
+
 
 //Use Scrutor and register service lifetime for Interface
 builder.Services.Scan(scan => scan
