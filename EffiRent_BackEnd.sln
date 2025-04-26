@@ -15,6 +15,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EffiRent.Infrastructure", "
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EffiRent.Presentation", "EffiRent.Presentation\EffiRent.Presentation.csproj", "{8C47D0A3-2F33-4E9A-B8D5-F9F41735960D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EffiRent.Application.Tests", "EffiRent.Application.Tests\EffiRent.Application.Tests.csproj", "{7124A5D7-2124-4F74-A4A5-786F842123A3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -41,6 +43,10 @@ Global
 		{8C47D0A3-2F33-4E9A-B8D5-F9F41735960D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8C47D0A3-2F33-4E9A-B8D5-F9F41735960D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8C47D0A3-2F33-4E9A-B8D5-F9F41735960D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7124A5D7-2124-4F74-A4A5-786F842123A3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7124A5D7-2124-4F74-A4A5-786F842123A3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7124A5D7-2124-4F74-A4A5-786F842123A3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7124A5D7-2124-4F74-A4A5-786F842123A3}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -51,6 +57,7 @@ Global
 		{9C8EDCDE-88BA-4C57-B0B9-5162CAE62DAD} = {2F5F2D63-0EFB-45D2-ABA8-B10FB8C259CE}
 		{92028CFB-B8CC-4E45-BFFC-AC8E396F1F54} = {2F5F2D63-0EFB-45D2-ABA8-B10FB8C259CE}
 		{8C47D0A3-2F33-4E9A-B8D5-F9F41735960D} = {2F5F2D63-0EFB-45D2-ABA8-B10FB8C259CE}
+		{7124A5D7-2124-4F74-A4A5-786F842123A3} = {2F5F2D63-0EFB-45D2-ABA8-B10FB8C259CE}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {2D68AB6C-6ED7-4E5E-B5D1-36B083B6944C}

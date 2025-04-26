@@ -1,5 +1,6 @@
 ﻿using EffiAP.Domain.Entities;
 using EffiAP.Domain.Models;
+using EffiRent.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -28,6 +29,10 @@ namespace EffiAP.Infrastructure.EntityModels
 
         public DbSet<Room> Room { get; set; }
         public DbSet<Branch> Branch { get; set; }
+
+        public DbSet<Contract> Contracts { get; set; }
+        public DbSet<Payment> Payments { get; set; }
+        public DbSet<Notification> Notifications { get; set; }
 
 
 

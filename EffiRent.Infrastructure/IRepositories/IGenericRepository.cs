@@ -23,8 +23,15 @@ namespace EffiAP.Infrastructure.IRepositories
         Task<T> GetOneAsync<T>(Expression<Func<T, bool>> predicate) where T : class;
         IQueryable<T> GetAsync<T>(Expression<Func<T, bool>> predicate) where T : class;
 
+        IQueryable<T> Get<T>(Expression<Func<T, bool>> predicate = null, params Expression<Func<T, object>>[] includes) where T : class;
+
         Task<bool> ExistsAsync<T>(int id) where T : class;
         //Task<bool> SaveAsync();
+
+        Task<T> GetByIdAsync<T>(Guid id) where T : class;
+
+
+
 
     }
 }

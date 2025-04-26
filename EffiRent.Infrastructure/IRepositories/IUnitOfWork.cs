@@ -19,6 +19,11 @@ namespace EffiAP.Infrastructure.IRepositories
         IGenericRepository Repository { get; }
         Task CommitTransactionAsync(IDbContextTransaction transaction);
         Task RollbackTransaction();
+        Task RollbackTransactionAsync(IDbContextTransaction transaction);
+
+
+        Task<IDbContextTransaction> BeginTransactionAsync();
+
         IDbContextTransaction BeginTransaction();
         DatabaseFacade Database();
         EffiRentContext DBContext();

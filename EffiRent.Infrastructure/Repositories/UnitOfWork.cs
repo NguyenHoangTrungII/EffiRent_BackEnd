@@ -92,10 +92,35 @@ namespace EffiAP.Infrastructure.Repositories
             }
         }
 
+        public async Task RollbackTransactionAsync(IDbContextTransaction transaction)
+        {
+            if (transaction == null)
+                throw new ArgumentNullException(nameof(transaction));
+
+            try
+            {
+                await transaction.RollbackAsync();
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException("Failed to rollback transaction.", ex);
+            }
+            finally
+            {
+                transaction.Dispose();
+            }
+        }
+
         public IDbContextTransaction BeginTransaction()
         {
             return _context.Database.BeginTransaction();
         }
+
+        public async Task<IDbContextTransaction> BeginTransactionAsync()
+        {
+            return await _context.Database.BeginTransactionAsync();
+        }
+
 
         public DatabaseFacade Database()
         {

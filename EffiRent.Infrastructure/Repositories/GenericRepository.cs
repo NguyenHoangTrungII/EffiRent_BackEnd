@@ -19,6 +19,25 @@ namespace EffiAP.Infrastructure.Repositories
             _context = context;
         }
 
+        public IQueryable<T> Get<T>(Expression<Func<T, bool>> predicate = null, params Expression<Func<T, object>>[] includes) where T : class
+        {
+            IQueryable<T> query = _context.Set<T>();
+
+            // Include các thực thể liên quan nếu có
+            foreach (var include in includes)
+            {
+                query = query.Include(include);
+            }
+
+            // Áp dụng bộ lọc nếu có
+            if (predicate != null)
+            {
+                query = query.Where(predicate);
+            }
+
+            return query;
+        }
+
         public IQueryable<T> GetAll<T>() where T : class
         {
             return _context.Set<T>();
@@ -105,5 +124,12 @@ namespace EffiAP.Infrastructure.Repositories
         {
             return _context.Set<T>().Where(predicate);
         }
+
+        public async Task<T> GetByIdAsync<T>(Guid id) where T : class
+        {
+            return await _context.Set<T>().FindAsync(id);
+        }
+
+       
     }
 }

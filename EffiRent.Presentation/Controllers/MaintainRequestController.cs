@@ -4,6 +4,7 @@ using EffiAP.Application.Services.Messaging;
 using EffiAP.Application.Wrappers;
 using EffiAP.Domain.ViewModels.MaintainRequest;
 using EffiAP.Presentation.Abstractions;
+using EffiRent.Application.Commands.MaintainRequestCommand;
 using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -26,28 +27,47 @@ namespace EffiAP.Presentation.Controllers
             //_maintenanceQueryQueries = maintenanceQueryQueries;
         }
 
+        /// <summary>
+        /// Create a new maintenance request.
+        /// </summary>
+        /// <param name="requestDto">Maintenance request details.</param>
+        /// <param name="images">Optional list of image files.</param>
+        /// <returns>ApiResponse indicating success or failure.</returns>
+        [HttpPost]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> CreateMaintenanceRequest(
+            //[FromForm] MaintenanceRequestCommandDTO requestDto,
+            [FromForm] List<IFormFile> images)
+        {
+            var requestDto = new MaintenanceRequestCommandDTO
+            {
+                //requestId = Guid.NewGuid(),
+                CustomerId = "CACD3209-2F5C-46CF-B7FE-F3E344E28D4B",
+                Status = "Pending",
+                PriorityLevel = 1,
+                //CreatedAt = DateTime.Parse("2022-09-26T08:08:57.954Z"),
+                CategoryId = new Guid("FFB7B23D-28C6-494E-B197-19A1E0242537"),
+                RoomId = new Guid("127A8EBB-6D96-4B16-913E-656E5F4B0DCB"),
+            };
+            var command = new CreateMaintenanceRequestCommand(requestDto, images);
+            var response = await _sender.Send(command);
+
+            if (response.Succeeded)
+            {
+                return Ok(response);
+            }
+
+            return BadRequest(response);
+        }
+
         // Endpoint để gán kỹ thuật viên từ hàng đợi
         [HttpPost("assign-technician-from-queue")]
                 [Consumes("multipart/form-data")]
         public async Task<IActionResult> AssignTechnicianFromQueue([FromForm] List<IFormFile> images)
         {
-            //if (requestDto == null)
-            //{
-            //    return BadRequest("Invalid maintenance request.");
-            //}
-
             try
             {
-                // Gửi command qua MediatR
-                //var command = new AssignTechnicianCommand(requestDto, images);
-                //var response = await _sender.Send(command);
-
-                //if (!response.Succeeded)
-                //{
-                //    return BadRequest(new ApiResponse<MaintenanceRequestCommandDTO>(response.Data, response.Message));
-                //}
-
-
                 //[FromForm] MaintenanceRequestCommandDTO requestDto,
                 var requestDto = new MaintenanceRequestCommandDTO
                 {

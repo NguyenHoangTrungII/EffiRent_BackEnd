@@ -20,6 +20,6 @@ namespace EffiAP.Domain.Entities
         public DateTime? EndDate { get; set; }
 
         // Navigation property referencing the associated room
-        public Room Room { get; set; }
+        public Room? Room { get; set; }
     }
 }

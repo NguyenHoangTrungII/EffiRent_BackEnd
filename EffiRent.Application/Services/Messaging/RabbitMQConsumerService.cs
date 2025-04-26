@@ -87,18 +87,18 @@ namespace EffiAP.Application.Services.Messaging
                         }
                     }
 
-                    var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-                    var command = new AssignTechnicianCommand(mess, imgs);
-                    var respone = await mediator.Send(command);
+                    //var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+                    //var command = new AssignTechnicianCommand(mess, imgs);
+                    //var respone = await mediator.Send(command);
 
-                    if (respone.Succeeded)
-                    {
-                        channel.BasicAck(deliveryTag: ea.DeliveryTag, multiple: false);
-                    }
-                    else
-                    {
-                        channel.BasicNack(deliveryTag: ea.DeliveryTag, multiple: false, requeue: false);
-                    }
+                    //if (respone.Succeeded)
+                    //{
+                    //    channel.BasicAck(deliveryTag: ea.DeliveryTag, multiple: false);
+                    //}
+                    //else
+                    //{
+                    //    channel.BasicNack(deliveryTag: ea.DeliveryTag, multiple: false, requeue: false);
+                    //}
                 }
             }
             catch

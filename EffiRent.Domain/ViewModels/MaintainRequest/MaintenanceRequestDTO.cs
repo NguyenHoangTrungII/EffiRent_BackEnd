@@ -26,7 +26,7 @@ namespace EffiAP.Domain.ViewModels.MaintainRequest
 
     public class MaintenanceRequestCommandDTO
     {
-        public Guid? requestId { get; set; }
+        public Guid requestId { get; set; }
         public Guid RoomId { get; set; }
         public string Description { get; set; }
         public string? TechnicianId { get; set; }
