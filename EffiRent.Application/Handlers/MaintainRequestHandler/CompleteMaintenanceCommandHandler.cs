@@ -1,7 +1,7 @@
 ﻿using EffiAP.Application.Commands.MaintainRequestCommand;
 using EffiAP.Application.Services.Messaging;
 using EffiAP.Application.Wrappers;
-using EffiAP.Domain.Models;
+using EffiRent.Domain.Entities;
 using EffiAP.Domain.ViewModels.MaintainRequest;
 using EffiAP.Infrastructure.IRepositories;
 using EffiAP.Infrastructure.Repositories;

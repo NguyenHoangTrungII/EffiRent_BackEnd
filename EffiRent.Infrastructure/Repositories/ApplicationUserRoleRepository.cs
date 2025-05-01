@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using EffiAP.Domain.Entities; // Đảm bảo bạn có namespace này
+//using EffiAP.Domain.Entities; // Đảm bảo bạn có namespace này
 using EffiAP.Infrastructure.IRepositories;
 
 namespace EffiAP.Infrastructure.Repositories

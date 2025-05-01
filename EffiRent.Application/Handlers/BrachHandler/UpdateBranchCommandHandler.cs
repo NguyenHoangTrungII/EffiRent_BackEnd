@@ -1,4 +1,4 @@
-﻿using EffiAP.Domain.Entities;
+﻿using EffiRent.Domain.Entities;
 using EffiAP.Infrastructure.IRepositories;
 using MediatR;
 using System;

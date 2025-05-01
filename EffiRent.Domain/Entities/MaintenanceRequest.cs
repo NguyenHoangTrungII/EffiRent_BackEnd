@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using EffiAP.Domain.Entities;
+//using EffiAP.Domain.Entities;
 
-namespace EffiAP.Domain.Models
+namespace EffiRent.Domain.Entities
 {
     public class MaintenanceRequest
     {

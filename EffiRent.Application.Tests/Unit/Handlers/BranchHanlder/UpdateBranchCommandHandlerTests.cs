@@ -1,5 +1,5 @@
 ﻿using EffiAP.Application.Commands.BranchCommand;
-using EffiAP.Domain.Entities;
+using EffiRent.Domain.Entities;
 using EffiAP.Infrastructure.IRepositories;
 using Moq;
 using System;
@@ -8,7 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace EffiRent.Application.Tests
+namespace EffiRent.Application.Tests.Unit.Handlers.BranchHanlder
 {
     public class UpdateBranchCommandHandlerTests
     {
@@ -88,7 +88,7 @@ namespace EffiRent.Application.Tests
             };
 
             _mockGenericRepo
-                .Setup(repo => repo.GetOneAsync<Branch>(It.IsAny<System.Linq.Expressions.Expression<Func<Branch, bool>>>()))
+                .Setup(repo => repo.GetOneAsync(It.IsAny<System.Linq.Expressions.Expression<Func<Branch, bool>>>()))
                 .ReturnsAsync((Branch)null); // Không tìm thấy
 
             // Act

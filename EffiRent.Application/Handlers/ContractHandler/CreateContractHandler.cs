@@ -6,7 +6,7 @@ using MediatR;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
-using EffiAP.Domain.Entities;
+using EffiRent.Domain.Entities;
 using EffiAP.Application.Queries;
 using EffiAP.Infrastructure.IRepositories; // Thêm để dùng transaction
 

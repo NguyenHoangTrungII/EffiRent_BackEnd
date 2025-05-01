@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -10,10 +10,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="CreateBranchCommandHandlerTests.cs" />
+    <None Include="Unit\Handlers\BranchHanlder\CreateBranchCommandHandlerTests.cs" />
   </ItemGroup>
 
-  <ItemGroup>
+  <!--<ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.0" />
     <PackageReference Include="EntityFramework" Version="6.5.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.4" />
@@ -24,7 +24,28 @@
     <PackageReference Include="System.Linq.Async" Version="6.0.1" />
     <PackageReference Include="xunit" Version="2.5.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
-  </ItemGroup>
+
+	  <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.4" />
+	  <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="7.0.14" />
+	  <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="7.0.14" />
+  </ItemGroup>-->
+
+	<ItemGroup>
+		<PackageReference Include="coverlet.collector" Version="6.0.0" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="7.0.14" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="7.0.14" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="7.0.14" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="7.0.14" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="7.0.14" />
+		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+		<PackageReference Include="MockQueryable.Moq" Version="7.0.3" />
+		<PackageReference Include="Moq" Version="4.20.72" />
+		<PackageReference Include="Moq.EntityFrameworkCore" Version="7.0.0.2" />
+		<PackageReference Include="NPoco" Version="5.7.1" />
+		<PackageReference Include="System.Linq.Async" Version="6.0.1" />
+		<PackageReference Include="xunit" Version="2.5.3" />
+		<PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+	</ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\EffiRent.Application\EffiRent.Application.csproj" />

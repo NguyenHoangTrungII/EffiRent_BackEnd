@@ -5,7 +5,7 @@ using EffiAP.Domain.ViewModels.Branch;
 using EffiAP.Infrastructure.IRepositories;
 using Microsoft.Extensions.Configuration;
 using FluentAssertions.Common;
-using EffiAP.Domain.Entities;
+using EffiRent.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using System.Net;
 

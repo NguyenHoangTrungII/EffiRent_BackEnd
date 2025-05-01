@@ -1,7 +1,7 @@
 ﻿using EffiAP.Application.Auth;
 using EffiAP.Application.Commands.BranchCommand;
 using EffiAP.Application.Queries.IQueries;
-using EffiAP.Domain.Entities;
+using EffiRent.Domain.Entities;
 using EffiAP.Domain.ViewModels.Branch;
 using EffiAP.Domain.ViewModels.Users;
 using EffiAP.Presentation.Abstractions;

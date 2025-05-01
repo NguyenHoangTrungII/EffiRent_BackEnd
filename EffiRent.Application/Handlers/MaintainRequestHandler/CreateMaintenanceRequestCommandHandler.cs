@@ -1,6 +1,5 @@
 ﻿using EffiAP.Application.Wrappers;
-using EffiAP.Domain.Entities;
-using EffiAP.Domain.Models;
+using EffiRent.Domain.Entities;
 using EffiAP.Domain.ViewModels.MaintainRequest;
 using EffiAP.Infrastructure.IRepositories;
 using EffiRent.Application.Commands.MaintainRequestCommand;
@@ -110,7 +109,7 @@ namespace EffiRent.Application.Handlers.MaintainRequestHandler
                         request.RequestDto.CustomerId, maintenanceRequest.Id);
 
                     // Commit transaction
-                    await _unitOfWork.CommitTransactionAsync(transaction);
+                    await _unitOfWork.CommitAsync(transaction);
 
                     return new ApiResponse<bool>("Maintenance request created and sent successfully")
                     {
@@ -121,7 +120,7 @@ namespace EffiRent.Application.Handlers.MaintainRequestHandler
                 catch (Exception ex)
                 {
                     // Rollback transaction nếu có lỗi
-                    await _unitOfWork.RollbackTransactionAsync(transaction);
+                    await _unitOfWork.RollbackAsync(transaction);
                     _logger.LogError(ex, "Error during transaction for CustomerId {CustomerId}, RequestId {RequestId}",
                         request.RequestDto.CustomerId, maintenanceRequest.Id);
                     throw;

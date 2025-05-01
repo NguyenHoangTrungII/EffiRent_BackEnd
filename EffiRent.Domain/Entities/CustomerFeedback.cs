@@ -1,7 +1,7 @@
-﻿using EffiAP.Domain.Models;
+﻿//using EffiAP.Domain.Models;
 using System;
 
-namespace EffiAP.Domain.Entities
+namespace EffiRent.Domain.Entities
 {
     public class CustomerFeedback
     {

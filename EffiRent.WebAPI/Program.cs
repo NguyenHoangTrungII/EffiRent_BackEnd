@@ -28,6 +28,11 @@ using AspNetCoreRateLimit;
 using Microsoft.AspNetCore.Antiforgery;
 using RabbitMQ.Client;
 using EffiRent.Application.Services.Rabbit;
+using EffiAP.Application.Services.Redis;
+using StackExchange.Redis;
+using FluentAssertions.Common;
+using Quartz;
+using EffiRent.WebAPI.Jobs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -140,6 +145,8 @@ builder.Services.AddStackExchangeRedisCache(options =>
     options.Configuration = redisConnectionString;
     options.InstanceName = "EffiRentCache";
 });
+builder.Services.AddSingleton<IConnectionMultiplexer>(sp => ConnectionMultiplexer.Connect("localhost:6379"));
+//builder.Services.AddSingleton<IRedisService, >();
 
 // Cấu hình Session
 builder.Services.AddSession(options =>
@@ -162,6 +169,26 @@ builder.Services.AddSingleton<IConnectionFactory>(sp =>
         DispatchConsumersAsync = true // Hỗ trợ AsyncEventingBasicConsumer
     };
 });
+
+builder.Services.AddQuartz(q =>
+{
+    var jobKey = new JobKey("CheckExpiringContractsJob");
+    q.AddJob<CheckExpiringContractsJob>(opts => opts.WithIdentity(jobKey));
+    q.AddTrigger(opts => opts
+        .ForJob(jobKey)
+        .WithIdentity("CheckExpiringContractsTrigger")
+        .WithDailyTimeIntervalSchedule(s => s
+            .WithIntervalInHours(24)
+            .OnEveryDay()
+            .StartingDailyAt(TimeOfDay.HourAndMinuteOfDay(0, 0)) // Chạy lúc 0:00 UTC
+        ));
+});
+
+// Thêm Quartz hosted service để chạy scheduler
+builder.Services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
+
+// Thêm các dịch vụ khác (MediatR, DbContext, v.v.)
+builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(CheckExpiringContractsJob).Assembly));
 
 var app = builder.Build();
 

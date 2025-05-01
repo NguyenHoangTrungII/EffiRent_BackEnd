@@ -2,7 +2,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using MediatR;
-using EffiAP.Domain.Entities;
+using EffiRent.Domain.Entities;
 using EffiAP.Infrastructure.Repositories;
 using EffiAP.Application.Commands.BranchCommand;
 using EffiAP.Infrastructure.IRepositories;

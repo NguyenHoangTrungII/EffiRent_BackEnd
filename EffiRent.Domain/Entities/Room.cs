@@ -1,9 +1,9 @@
-﻿using EffiAP.Domain.Models;
+﻿//using EffiAP.Domain.Models;
 using System;
 using System.Collections.Generic;
 
-namespace EffiAP.Domain.Entities
-{
+namespace EffiRent.Domain.Entities 
+{ 
     public class Room
     {
         // Unique identifier for the room

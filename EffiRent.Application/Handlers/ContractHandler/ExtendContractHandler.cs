@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore.Storage;
 using EffiAP.Application.Queries;
-using EffiAP.Domain.Entities;
+using EffiRent.Domain.Entities;
 using EffiAP.Infrastructure.IRepositories;
 
 namespace EffiRent.Application.Handlers.ContractHandler
@@ -92,7 +92,7 @@ namespace EffiRent.Application.Handlers.ContractHandler
                 await _unitOfWork.SaveChangesAsync();
 
                 // Commit giao dịch
-                await _unitOfWork.CommitTransactionAsync(transaction);
+                await _unitOfWork.CommitAsync(transaction);
 
                 // Gửi email thông báo
                 await _emailService.SendEmailAsync(
@@ -106,7 +106,7 @@ namespace EffiRent.Application.Handlers.ContractHandler
             catch (Exception ex)
             {
                 // Rollback giao dịch nếu có lỗi
-                await transaction.RollbackAsync();
+                await _unitOfWork.RollbackAsync(transaction);
                 throw new Exception("Failed to extend contract: " + ex.Message, ex);
             }
             finally

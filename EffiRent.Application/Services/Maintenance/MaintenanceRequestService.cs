@@ -1,5 +1,5 @@
-﻿using EffiAP.Domain.Entities;
-using EffiAP.Domain.Models;
+﻿using EffiRent.Domain.Entities;
+//using EffiAP.Domain.Models;
 using EffiAP.Domain.ViewModels.MaintainRequest;
 using EffiAP.Infrastructure.IRepositories;
 using EffiRent.Application.Services.Rabbit;
@@ -32,7 +32,7 @@ namespace EffiRent.Application.Services.Maintenance
 
             try
             {
-               
+
                 // Lấy MaintenanceRequest hiện có dựa trên requestId
                 var maintenanceRequest = await _unitOfWork.Repository.GetByIdAsync<MaintenanceRequest>(request.requestId);
                 if (maintenanceRequest == null)
@@ -62,7 +62,7 @@ namespace EffiRent.Application.Services.Maintenance
                 await _unitOfWork.Repository.UpdateAsync(maintenanceRequest);
                 await _unitOfWork.SaveChangesAsync();
 
-                await _unitOfWork.CommitTransactionAsync(transaction);
+                await _unitOfWork.CommitAsync(transaction);
 
                 // Trả về DTO với thông tin đã cập nhật
                 var result = new MaintenanceRequestCommandDTO
@@ -82,7 +82,7 @@ namespace EffiRent.Application.Services.Maintenance
             }
             catch (Exception ex)
             {
-                await _unitOfWork.RollbackTransactionAsync(transaction);
+                await _unitOfWork.RollbackAsync(transaction);
                 _logger.LogError(ex, "Error updating maintenance request for RequestId {RequestId}", request.requestId);
                 throw;
             }

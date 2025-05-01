@@ -1,6 +1,6 @@
 ﻿// EffiRent.Application/Queries/IQueries/RoomQuery.cs
 using EffiAP.Application.Queries;
-using EffiAP.Domain.Entities;
+using EffiRent.Domain.Entities;
 using EffiAP.Infrastructure.IRepositories;
 using Microsoft.Extensions.Configuration;
 

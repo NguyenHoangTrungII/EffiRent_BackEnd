@@ -1,7 +1,7 @@
 ﻿// EffiRent.Application/Handlers/RoomHandler/RoomHandler.cs
 using EffiAP.Application.Queries;
-using EffiAP.Domain.Entities;
-using EffiAP.Domain.Models;
+using EffiRent.Domain.Entities;
+//using EffiAP.Domain.Models;
 using EffiAP.Infrastructure.IRepositories;
 using EffiRent.Application.Commands.RoomCommand;
 using MediatR;

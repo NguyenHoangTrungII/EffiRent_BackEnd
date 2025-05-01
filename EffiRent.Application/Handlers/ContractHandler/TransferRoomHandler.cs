@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore.Storage;
 using EffiAP.Application.Queries;
-using EffiAP.Domain.Entities;
+using EffiRent.Domain.Entities;
 using EffiAP.Infrastructure.IRepositories;
 
 namespace EffiRent.Application.Handlers.ContractHandler
@@ -68,7 +68,7 @@ namespace EffiRent.Application.Handlers.ContractHandler
                     TenantRoomId = request.NewRoomId,
                     StartDate = request.NewStartDate,
                     EndDate = request.NewEndDate,
-                    RentAmount =  oldContract.RentAmount, // Giả sử Room có RentAmount, nếu không thì dùng giá cũ
+                    RentAmount = oldContract.RentAmount, // Giả sử Room có RentAmount, nếu không thì dùng giá cũ
                     DepositAmount = oldContract.DepositAmount, // Giữ nguyên tiền đặt cọc
                     Terms = oldContract.Terms, // Giữ nguyên điều khoản
                     Status = "Active",
@@ -119,7 +119,7 @@ namespace EffiRent.Application.Handlers.ContractHandler
                 await _unitOfWork.SaveChangesAsync();
 
                 // Commit giao dịch
-                await _unitOfWork.CommitTransactionAsync(transaction);
+                await _unitOfWork.CommitAsync(transaction);
 
                 // Gửi email thông báo
                 await _emailService.SendEmailAsync(

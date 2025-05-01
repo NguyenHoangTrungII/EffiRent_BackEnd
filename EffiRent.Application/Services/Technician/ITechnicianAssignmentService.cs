@@ -11,5 +11,9 @@ namespace EffiRent.Application.Services.Technician
     public interface ITechnicianAssignmentService : IScopedService
     {
         Task<string> AssignTechnicianAsync(MaintenanceRequestCommandDTO request);
+
+        Task MarkTechnicianAvailable(string technicianId);
+
+
     }
 }

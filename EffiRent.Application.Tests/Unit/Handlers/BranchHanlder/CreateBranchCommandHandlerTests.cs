@@ -1,6 +1,6 @@
 ﻿using EffiAP.Application.Commands.BranchCommand;
 using EffiAP.Application.Commands.BranchCommands;
-using EffiAP.Domain.Entities;
+using EffiRent.Domain.Entities;
 using EffiAP.Infrastructure.IRepositories;
 using Microsoft.Extensions.Configuration;
 using Moq;
@@ -221,75 +221,3 @@ namespace EffiAP.Application.Tests.Commands.BranchCommands
         }
     }
 }
-
-
-//using EffiAP.Application.Commands.BranchCommand;
-//using EffiAP.Application.Commands.BranchCommands;
-//using EffiAP.Domain.Entities;
-//using EffiAP.Infrastructure.IRepositories;
-//using Microsoft.Extensions.Configuration;
-//using Moq;
-
-//namespace EffiRent.Application.Tests
-//{
-//    public class CreateBranchCommandHandlerTests
-//    {
-//        private readonly Mock<IUnitOfWork> _mockUnitOfWork;
-//        private readonly Mock<IGenericRepository> _mockGenericRepo;
-//        private readonly Mock<IConfiguration> _mockConfig;
-//        private readonly CreateBranchCommandHandler _handler;
-
-//        public CreateBranchCommandHandlerTests()
-//        {
-//            _mockUnitOfWork = new Mock<IUnitOfWork>();
-//            _mockGenericRepo = new Mock<IGenericRepository>();
-//            _mockConfig = new Mock<IConfiguration>();
-
-//            // Thiết lập repo chung từ UnitOfWork
-//            _mockUnitOfWork.Setup(u => u.Repository).Returns(_mockGenericRepo.Object);
-
-//            _handler = new CreateBranchCommandHandler(_mockUnitOfWork.Object, _mockConfig.Object);
-//        }
-
-//        [Fact]
-//        public async Task Handle_ShouldCreateBranch_AndReturnGuid()
-//        {
-//            // Arrange
-//            var request = new CreateBranchCommand
-//            {
-//                OwnerId = Guid.NewGuid().ToString(),
-//                BranchName = "Chi nhánh Hà Nội",
-//                Address = "123 Lê Duẩn",
-//                Phone = "0123456789",
-//                Email = "hanoi@effiap.vn"
-//            };
-
-//            // Setup mock repo
-//            _mockGenericRepo
-//                .Setup(repo => repo.AddAsync(It.IsAny<Branch>()))
-//                .Returns(Task.CompletedTask);
-
-//            _mockUnitOfWork
-//                .Setup(uow => uow.SaveEntitiesAsync(It.IsAny<CancellationToken>()))
-//                .ReturnsAsync(true);
-
-//            // Act
-//            var result = await _handler.Handle(request, CancellationToken.None);
-
-//            // Assert
-//            Assert.IsType<Guid>(result);
-//            Assert.NotEqual(Guid.Empty, result);
-
-//            _mockGenericRepo.Verify(repo => repo.AddAsync(It.Is<Branch>(b =>
-//                b.BranchName == request.BranchName &&
-//                b.Address == request.Address &&
-//                b.Phone == request.Phone &&
-//                b.Email == request.Email &&
-//                b.OwnerId == request.OwnerId
-//            )), Times.Once);
-
-//            _mockUnitOfWork.Verify(uow => uow.SaveEntitiesAsync(It.IsAny<CancellationToken>()), Times.Once);
-//        }
-//    }
-
-//}

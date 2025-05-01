@@ -10,6 +10,7 @@ using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using System;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using IRabbitMQProducerService = EffiRent.Application.Services.Rabbit.IRabbitMQProducerService;
@@ -22,6 +23,7 @@ namespace EffiRent.Application.Services.Rabbit
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly IConnection _connection;
         private readonly IModel _channel;
+
 
         private readonly string _maintenanceExchange = "maintenance_exchange";
         private readonly string _retryExchange = "retry_exchange";
@@ -91,6 +93,11 @@ namespace EffiRent.Application.Services.Rabbit
 
             try
             {
+                // Consumer for maintenance queue
+                /// <summary>
+                /// Handles incoming messages from the maintenance queue.
+                /// Processes each message using IMessageProcessingService.ProcessMessageAsync.
+                /// </summary>
                 var maintenanceConsumer = new AsyncEventingBasicConsumer(_channel);
                 maintenanceConsumer.Received += async (model, ea) =>
                 {
@@ -105,45 +112,23 @@ namespace EffiRent.Application.Services.Rabbit
                 _channel.BasicConsume(queue: _maintenanceQueue, autoAck: false, consumer: maintenanceConsumer);
                 _logger.LogInformation("Started consumer for {Queue}", _maintenanceQueue);
 
+                // Consumer for completion queue
+                /// <summary>
+                /// Handles incoming messages from the completion queue.
+                /// Processes each message using IMessageProcessingService.ProcessCompletedMessageAsync.
+                /// </summary>
                 var completionConsumer = new AsyncEventingBasicConsumer(_channel);
                 completionConsumer.Received += async (model, ea) =>
                 {
+
+                    var body = ea.Body.ToArray();
+                    var message = Encoding.UTF8.GetString(body);
+
                     using var scope = _scopeFactory.CreateScope();
                     var messageProcessingService = scope.ServiceProvider.GetRequiredService<IMessageProcessingService>();
-                    var producerService = scope.ServiceProvider.GetRequiredService<IRabbitMQProducerService>();
+                    await messageProcessingService.ProcessCompletedMessageAsync(_channel, ea, message);
 
-                    try
-                    {
-                        var body = ea.Body.ToArray();
-                        var message = Encoding.UTF8.GetString(body);
-                        _logger.LogInformation("Received completion event from {Queue}: {Message}", _completionQueue, message);
 
-                        // TODO: Xử lý completion event (ví dụ: cập nhật trạng thái)
-                        // await messageProcessingService.ProcessCompletionEventAsync(message);
-
-                        while (true)
-                        {
-                            var result = _channel.BasicGet(_retryQueue, autoAck: false);
-                            if (result == null)
-                            {
-                                _logger.LogInformation("No more messages in {Queue}", _retryQueue);
-                                break;
-                            }
-
-                            var retryMessage = Encoding.UTF8.GetString(result.Body.ToArray());
-                            await producerService.PublishAsync(retryMessage, _maintenanceExchange, _maintenanceRoutingKey);
-                            _logger.LogInformation("Moved message from {RetryQueue} to {MaintenanceQueue}", _retryQueue, _maintenanceQueue);
-
-                            _channel.BasicAck(result.DeliveryTag, multiple: false);
-                        }
-
-                        _channel.BasicAck(ea.DeliveryTag, multiple: false);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Error processing completion event from {Queue}: {Error}", _completionQueue, ex.Message);
-                        _channel.BasicAck(ea.DeliveryTag, multiple: false);
-                    }
                 };
 
                 _channel.BasicConsume(queue: _completionQueue, autoAck: false, consumer: completionConsumer);

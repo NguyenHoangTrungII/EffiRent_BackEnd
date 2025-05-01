@@ -19,4 +19,11 @@ namespace EffiAP.Domain.ViewModels.MaintainRequest
 
         public Guid RequestId { get; set; }
     }
+
+    public class CompletionEvent
+    {
+        public string TechnicianId { get; set; }
+        public string RequestId { get; set; }
+        //public DateTime CompletionTime { get; set; }
+    }
 }

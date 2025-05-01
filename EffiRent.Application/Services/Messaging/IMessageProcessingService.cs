@@ -12,5 +12,9 @@ namespace EffiRent.Application.Services.Messaging
     public interface IMessageProcessingService : ISingletonService
     {
         Task ProcessMessageAsync(IModel channel, BasicDeliverEventArgs ea, string message);
+
+        Task ProcessCompletedMessageAsync(IModel channel, BasicDeliverEventArgs ea, string message);
+
+
     }
 }

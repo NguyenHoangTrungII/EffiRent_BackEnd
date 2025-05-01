@@ -11,10 +11,10 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using EffiAP.Domain.Entities;
+using EffiRent.Domain.Entities;
 using Microsoft.EntityFrameworkCore.Storage;
 
-namespace EffiRent.Application.Tests.Handlers.ContractHandler
+namespace EffiRent.Application.Tests.Unit.Handlers.ContractHandler
 {
     public class CreateContractHandlerTests
     {
@@ -37,7 +37,8 @@ namespace EffiRent.Application.Tests.Handlers.ContractHandler
             _mockTransaction = new Mock<IDbContextTransaction>();
 
             _mockUnitOfWork.Setup(u => u.Repository).Returns(_mockGenericRepo.Object);
-            _mockUnitOfWork.Setup(u => u.BeginTransactionAsync()).ReturnsAsync(_mockTransaction.Object);
+            _mockUnitOfWork.Setup(u => u.BeginTransactionAsync(It.IsAny<CancellationToken>()))
+                           .ReturnsAsync(_mockTransaction.Object);
 
             _handler = new CreateContractHandler(
                 _mockUnitOfWork.Object,
@@ -83,10 +84,10 @@ namespace EffiRent.Application.Tests.Handlers.ContractHandler
 
             // Assert
             Assert.NotEqual(Guid.Empty, result);
-            _mockGenericRepo.Verify(r => r.UpdateAsync<Room>(It.Is<Room>(rm => rm.Status == Room.RoomStatus.Occupied)), Times.Once());
-            _mockGenericRepo.Verify(r => r.AddAsync<Contract>(It.IsAny<Contract>()), Times.Once());
-            _mockGenericRepo.Verify(r => r.AddAsync<Payment>(It.IsAny<Payment>()), Times.Once());
-            _mockGenericRepo.Verify(r => r.AddAsync<Notification>(It.IsAny<Notification>()), Times.Once());
+            _mockGenericRepo.Verify(r => r.UpdateAsync(It.Is<Room>(rm => rm.Status == Room.RoomStatus.Occupied)), Times.Once());
+            _mockGenericRepo.Verify(r => r.AddAsync(It.IsAny<Contract>()), Times.Once());
+            _mockGenericRepo.Verify(r => r.AddAsync(It.IsAny<Payment>()), Times.Once());
+            _mockGenericRepo.Verify(r => r.AddAsync(It.IsAny<Notification>()), Times.Once());
             _mockUnitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once());
             _mockTransaction.Verify(t => t.CommitAsync(It.IsAny<CancellationToken>()), Times.Once());
             _mockEmailService.Verify(e => e.SendEmailAsync(tenant.Email, It.IsAny<string>(), It.IsAny<string>()), Times.Once());
@@ -186,48 +187,6 @@ namespace EffiRent.Application.Tests.Handlers.ContractHandler
             _mockTransaction.Verify(t => t.RollbackAsync(It.IsAny<CancellationToken>()), Times.Once());
         }
 
-        //[Fact]
-        //public async Task Handle_NenRollbackTransaction_KhiEmailGuiThatBai()
-        //{
-        //    // Arrange
-        //    var tenantId = Guid.NewGuid().ToString();
-        //    var roomId = Guid.NewGuid();
-        //    var tenant = new IdentityUser { Id = tenantId, Email = "tenant@example.com" };
-        //    var room = new Room
-        //    {
-        //        Id = roomId,
-        //        Name = "Room 101",
-        //        Status = Room.RoomStatus.Available
-        //    };
-        //    var request = new CreateContractCommand
-        //    {
-        //        TenantId = tenantId,
-        //        RoomId = roomId,
-        //        StartDate = DateTime.UtcNow,
-        //        EndDate = DateTime.UtcNow.AddMonths(6),
-        //        RentAmount = 1000,
-        //        DepositAmount = 500,
-        //        PaymentMethod = "Bank Transfer",
-        //        Terms = "Standard terms"
-        //    };
-
-        //    _mockUserManager.Setup(um => um.FindByIdAsync(tenantId)).ReturnsAsync(tenant);
-        //    _mockGenericRepo.Setup(r => r.GetByIdAsync<Room>(roomId)).ReturnsAsync(room);
-        //    _mockUnitOfWork.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
-        //    _mockEmailService.Setup(e => e.SendEmailAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
-        //        .ThrowsAsync(new Exception("Email service failed"));
-        //    _mockTransaction.Setup(t => t.RollbackAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
-
-        //    // Act & Assert
-        //    var exception = await Assert.ThrowsAsync<Exception>(() => _handler.Handle(request, CancellationToken.None));
-        //    Assert.Contains("Failed to create contract", exception.Message);
-        //    _mockGenericRepo.Verify(r => r.AddAsync<Contract>(It.IsAny<Contract>()), Times.Once());
-        //    _mockGenericRepo.Verify(r => r.UpdateAsync<Room>(It.Is<Room>(rm => rm.Status == Room.RoomStatus.Occupied)), Times.Once());
-        //    _mockGenericRepo.Verify(r => r.AddAsync<Payment>(It.IsAny<Payment>()), Times.Once());
-        //    _mockGenericRepo.Verify(r => r.AddAsync<Notification>(It.IsAny<Notification>()), Times.Once());
-        //    _mockUnitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once());
-        //    _mockTransaction.Verify(t => t.RollbackAsync(It.IsAny<CancellationToken>()), Times.Once());
-        //    _mockTransaction.Verify(t => t.CommitAsync(It.IsAny<CancellationToken>()), Times.Never());
-        //}
+        
     }
 }

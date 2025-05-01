@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace EffiAP.Domain.Entities
+namespace EffiRent.Domain.Entities
 {
     public class TenantRoom
     {

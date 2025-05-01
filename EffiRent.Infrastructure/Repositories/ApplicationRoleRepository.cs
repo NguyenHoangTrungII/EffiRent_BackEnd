@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using System;
 using System.Threading.Tasks;
-using EffiAP.Domain.Entities; // Assuming your ApplicationRole entity is here
+//using EffiAP.Domain.Entities; // Assuming your ApplicationRole entity is here
 using EffiAP.Infrastructure.IRepositories;
 
 namespace EffiAP.Infrastructure.Repositories

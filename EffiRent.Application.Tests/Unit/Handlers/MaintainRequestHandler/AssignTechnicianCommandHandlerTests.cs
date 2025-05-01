@@ -1,10 +1,362 @@
-﻿//using EffiAP.Application.Commands.MaintainRequestCommand;
+﻿using EffiRent.Application.Commands.MaintainRequestCommand;
+using EffiRent.Application.Handlers.MaintainRequestHandler;
+using EffiRent.Application.Services.Maintenance;
+using EffiAP.Application.Wrappers;
+using EffiAP.Domain.ViewModels.MaintainRequest;
+using EffiRent.Application.Services.Technician;
+using EffiRent.Domain.Entities;
+using EffiAP.Infrastructure.IRepositories;
+using Microsoft.Extensions.Logging;
+using Moq;
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using Xunit;
+using EffiAP.Application.Commands.MaintainRequestCommand;
+
+namespace EffiRent.Application.Tests.Handlers.MaintainRequestHandler
+{
+    public class AssignTechnicianCommandHandlerTests
+    {
+        private readonly Mock<IMaintenanceRequestService> _mockMaintenanceRequestService;
+        private readonly Mock<ILogger<AssignTechnicianCommandHandler>> _mockLogger;
+        private readonly AssignTechnicianCommandHandler _handler;
+
+        public AssignTechnicianCommandHandlerTests()
+        {
+            _mockMaintenanceRequestService = new Mock<IMaintenanceRequestService>();
+            _mockLogger = new Mock<ILogger<AssignTechnicianCommandHandler>>();
+            _handler = new AssignTechnicianCommandHandler(_mockMaintenanceRequestService.Object, _mockLogger.Object);
+        }
+
+        private MaintenanceRequestCommandDTO CreateRequestDTO(Guid requestId, string customerId)
+        {
+            return new MaintenanceRequestCommandDTO
+            {
+                requestId = requestId,
+                CustomerId = customerId,
+                PriorityLevel = 1,
+                CategoryId = Guid.NewGuid(),
+                RoomId = Guid.NewGuid(),
+                CreatedAt = DateTime.UtcNow,
+                Status = "Pending"
+            };
+        }
+
+        private AssignTechnicianCommand CreateCommand(MaintenanceRequestCommandDTO requestDTO, List<string> fileUrls = null)
+        {
+            return new AssignTechnicianCommand
+            {
+                Message = new MaintenanceMessage
+                {
+                    request = requestDTO,
+                    FileBase64 = fileUrls ?? new List<string>()
+                }
+            };
+        }
+
+        [Fact]
+        public async Task Handle_ShouldAssignTechnician_WhenRequestIsValid()
+        {
+            // Arrange
+            var requestId = Guid.NewGuid();
+            var customerId = "customer123";
+            var technicianId = "tech123";
+            var requestDTO = CreateRequestDTO(requestId, customerId);
+            var command = CreateCommand(requestDTO);
+            var resultDTO = new MaintenanceRequestCommandDTO
+            {
+                requestId = requestId,
+                CustomerId = customerId,
+                TechnicianId = technicianId,
+                Status = "Assigned",
+                PriorityLevel = 1,
+                CategoryId = requestDTO.CategoryId,
+                RoomId = requestDTO.RoomId,
+                CreatedAt = requestDTO.CreatedAt
+            };
+
+            _mockMaintenanceRequestService
+                .Setup(s => s.ProcessMaintenanceRequestAsync(requestDTO, command.Message.FileBase64))
+                .ReturnsAsync(resultDTO);
+
+            // Act
+            var result = await _handler.Handle(command, CancellationToken.None);
+
+            // Assert
+            Assert.True(result.Succeeded);
+            Assert.Equal("Maintenance request processed successfully", result.Message);
+            Assert.Equal(resultDTO, result.Data);
+            _mockMaintenanceRequestService.Verify(s => s.ProcessMaintenanceRequestAsync(requestDTO, command.Message.FileBase64), Times.Once());
+            _mockLogger.Verify(l => l.Log(It.IsAny<LogLevel>(), It.IsAny<EventId>(), It.IsAny<It.IsAnyType>(), It.IsAny<Exception>(), It.IsAny<Func<It.IsAnyType, Exception, string>>()), Times.Never());
+        }
+
+        [Fact]
+        public async Task Handle_ShouldQueueRequest_WhenNoTechnicianAvailable()
+        {
+            // Arrange
+            var requestId = Guid.NewGuid();
+            var customerId = "customer123";
+            var requestDTO = CreateRequestDTO(requestId, customerId);
+            var command = CreateCommand(requestDTO);
+            var resultDTO = new MaintenanceRequestCommandDTO
+            {
+                requestId = requestId,
+                CustomerId = customerId,
+                TechnicianId = null,
+                Status = "Queued",
+                PriorityLevel = 1,
+                CategoryId = requestDTO.CategoryId,
+                RoomId = requestDTO.RoomId,
+                CreatedAt = requestDTO.CreatedAt
+            };
+
+            _mockMaintenanceRequestService
+                .Setup(s => s.ProcessMaintenanceRequestAsync(requestDTO, command.Message.FileBase64))
+                .ReturnsAsync(resultDTO);
+
+            // Act
+            var result = await _handler.Handle(command, CancellationToken.None);
+
+            // Assert
+            Assert.True(result.Succeeded);
+            Assert.Equal("Maintenance request processed successfully", result.Message);
+            Assert.Equal(resultDTO, result.Data);
+            Assert.Null(result.Data.TechnicianId);
+            Assert.Equal("Queued", result.Data.Status);
+            _mockMaintenanceRequestService.Verify(s => s.ProcessMaintenanceRequestAsync(requestDTO, command.Message.FileBase64), Times.Once());
+            _mockLogger.Verify(l => l.Log(It.IsAny<LogLevel>(), It.IsAny<EventId>(), It.IsAny<It.IsAnyType>(), It.IsAny<Exception>(), It.IsAny<Func<It.IsAnyType, Exception, string>>()), Times.Never());
+        }
+
+        [Fact]
+        public async Task Handle_ShouldReturnError_WhenRequestIsNull()
+        {
+            // Arrange
+            AssignTechnicianCommand command = null;
+
+            // Act
+            var result = await _handler.Handle(command, CancellationToken.None);
+
+            // Assert
+            Assert.False(result.Succeeded);
+            Assert.Equal("Request data is null", result.Message);
+            Assert.Null(result.Data);
+            _mockMaintenanceRequestService.Verify(s => s.ProcessMaintenanceRequestAsync(It.IsAny<MaintenanceRequestCommandDTO>(), It.IsAny<List<string>>()), Times.Never());
+            _mockLogger.Verify(l => l.Log(LogLevel.Warning, It.IsAny<EventId>(), It.IsAny<It.IsAnyType>(), null, It.IsAny<Func<It.IsAnyType, Exception, string>>()), Times.Once());
+        }
+
+        [Fact]
+        public async Task Handle_ShouldReturnError_WhenMessageIsNull()
+        {
+            // Arrange
+            var command = new AssignTechnicianCommand { Message = null };
+
+            // Act
+            var result = await _handler.Handle(command, CancellationToken.None);
+
+            // Assert
+            Assert.False(result.Succeeded);
+            Assert.Equal("Request data is null", result.Message);
+            Assert.Null(result.Data);
+            _mockMaintenanceRequestService.Verify(s => s.ProcessMaintenanceRequestAsync(It.IsAny<MaintenanceRequestCommandDTO>(), It.IsAny<List<string>>()), Times.Never());
+            _mockLogger.Verify(l => l.Log(LogLevel.Warning, It.IsAny<EventId>(), It.IsAny<It.IsAnyType>(), null, It.IsAny<Func<It.IsAnyType, Exception, string>>()), Times.Once());
+        }
+
+        [Fact]
+        public async Task Handle_ShouldReturnError_WhenRequestDTOIsNull()
+        {
+            // Arrange
+            var command = new AssignTechnicianCommand
+            {
+                Message = new MaintenanceMessage { request = null, FileBase64 = new List<string>() }
+            };
+
+            // Act
+            var result = await _handler.Handle(command, CancellationToken.None);
+
+            // Assert
+            Assert.False(result.Succeeded);
+            Assert.Equal("Request data is null", result.Message);
+            Assert.Null(result.Data);
+            _mockMaintenanceRequestService.Verify(s => s.ProcessMaintenanceRequestAsync(It.IsAny<MaintenanceRequestCommandDTO>(), It.IsAny<List<string>>()), Times.Never());
+            _mockLogger.Verify(l => l.Log(LogLevel.Warning, It.IsAny<EventId>(), It.IsAny<It.IsAnyType>(), null, It.IsAny<Func<It.IsAnyType, Exception, string>>()), Times.Once());
+        }
+
+        [Fact]
+        public async Task Handle_ShouldReturnError_WhenMaintenanceRequestNotFound()
+        {
+            // Arrange
+            var requestId = Guid.NewGuid();
+            var customerId = "customer123";
+            var requestDTO = CreateRequestDTO(requestId, customerId);
+            var command = CreateCommand(requestDTO);
+            var exception = new Exception($"Maintenance request with ID {requestId} not found.");
+
+            _mockMaintenanceRequestService
+                .Setup(s => s.ProcessMaintenanceRequestAsync(requestDTO, command.Message.FileBase64))
+                .ThrowsAsync(exception);
+
+            // Act
+            var result = await _handler.Handle(command, CancellationToken.None);
+
+            // Assert
+            Assert.False(result.Succeeded);
+            Assert.Equal($"Error: {exception.Message}", result.Message);
+            Assert.Null(result.Data);
+            Assert.Contains(exception.ToString(), result.Errors);
+            _mockMaintenanceRequestService.Verify(s => s.ProcessMaintenanceRequestAsync(requestDTO, command.Message.FileBase64), Times.Once());
+            _mockLogger.Verify(l => l.Log(LogLevel.Error, It.IsAny<EventId>(), It.IsAny<It.IsAnyType>(), exception, It.IsAny<Func<It.IsAnyType, Exception, string>>()), Times.Once());
+        }
+
+        [Fact]
+        public async Task Handle_ShouldReturnError_WhenAssignTechnicianThrowsException()
+        {
+            // Arrange
+            var requestId = Guid.NewGuid();
+            var customerId = "customer123";
+            var requestDTO = CreateRequestDTO(requestId, customerId);
+            var command = CreateCommand(requestDTO);
+            var exception = new Exception("Technician assignment failed");
+
+            _mockMaintenanceRequestService
+                .Setup(s => s.ProcessMaintenanceRequestAsync(requestDTO, command.Message.FileBase64))
+                .ThrowsAsync(exception);
+
+            // Act
+            var result = await _handler.Handle(command, CancellationToken.None);
+
+            // Assert
+            Assert.False(result.Succeeded);
+            Assert.Equal($"Error: {exception.Message}", result.Message);
+            Assert.Null(result.Data);
+            Assert.Contains(exception.ToString(), result.Errors);
+            _mockMaintenanceRequestService.Verify(s => s.ProcessMaintenanceRequestAsync(requestDTO, command.Message.FileBase64), Times.Once());
+            _mockLogger.Verify(l => l.Log(LogLevel.Error, It.IsAny<EventId>(), It.IsAny<It.IsAnyType>(), exception, It.IsAny<Func<It.IsAnyType, Exception, string>>()), Times.Once());
+        }
+
+        [Fact]
+        public async Task Handle_ShouldReturnError_WhenSaveChangesThrowsException()
+        {
+            // Arrange
+            var requestId = Guid.NewGuid();
+            var customerId = "customer123";
+            var requestDTO = CreateRequestDTO(requestId, customerId);
+            var command = CreateCommand(requestDTO);
+            var exception = new Exception("Save changes failed");
+
+            _mockMaintenanceRequestService
+                .Setup(s => s.ProcessMaintenanceRequestAsync(requestDTO, command.Message.FileBase64))
+                .ThrowsAsync(exception);
+
+            // Act
+            var result = await _handler.Handle(command, CancellationToken.None);
+
+            // Assert
+            Assert.False(result.Succeeded);
+            Assert.Equal($"Error: {exception.Message}", result.Message);
+            Assert.Null(result.Data);
+            Assert.Contains(exception.ToString(), result.Errors);
+            _mockMaintenanceRequestService.Verify(s => s.ProcessMaintenanceRequestAsync(requestDTO, command.Message.FileBase64), Times.Once());
+            _mockLogger.Verify(l => l.Log(LogLevel.Error, It.IsAny<EventId>(), It.IsAny<It.IsAnyType>(), exception, It.IsAny<Func<It.IsAnyType, Exception, string>>()), Times.Once());
+        }
+
+        [Fact]
+        public async Task Handle_ShouldThrowOperationCanceled_WhenCancellationRequested()
+        {
+            // Arrange
+            var requestId = Guid.NewGuid();
+            var customerId = "customer123";
+            var requestDTO = CreateRequestDTO(requestId, customerId);
+            var command = CreateCommand(requestDTO);
+            var cts = new CancellationTokenSource();
+            cts.Cancel();
+
+            // Act & Assert
+            await Assert.ThrowsAsync<OperationCanceledException>(() => _handler.Handle(command, cts.Token));
+            _mockMaintenanceRequestService.Verify(s => s.ProcessMaintenanceRequestAsync(It.IsAny<MaintenanceRequestCommandDTO>(), It.IsAny<List<string>>()), Times.Never());
+            _mockLogger.Verify(l => l.Log(It.IsAny<LogLevel>(), It.IsAny<EventId>(), It.IsAny<It.IsAnyType>(), It.IsAny<Exception>(), It.IsAny<Func<It.IsAnyType, Exception, string>>()), Times.Never());
+        }
+
+        [Fact]
+        public async Task Handle_ShouldHandleMultipleRequests()
+        {
+            // Arrange
+            var requestId1 = Guid.NewGuid();
+            var requestId2 = Guid.NewGuid();
+            var customerId = "customer123";
+            var technicianId = "tech123";
+            var requestDTO1 = CreateRequestDTO(requestId1, customerId);
+            var requestDTO2 = CreateRequestDTO(requestId2, customerId);
+            var command1 = CreateCommand(requestDTO1);
+            var command2 = CreateCommand(requestDTO2);
+            var resultDTO1 = new MaintenanceRequestCommandDTO
+            {
+                requestId = requestId1,
+                CustomerId = customerId,
+                TechnicianId = technicianId,
+                Status = "Assigned",
+                PriorityLevel = 1,
+                CategoryId = requestDTO1.CategoryId,
+                RoomId = requestDTO1.RoomId,
+                CreatedAt = requestDTO1.CreatedAt
+            };
+            var resultDTO2 = new MaintenanceRequestCommandDTO
+            {
+                requestId = requestId2,
+                CustomerId = customerId,
+                TechnicianId = technicianId,
+                Status = "Assigned",
+                PriorityLevel = 1,
+                CategoryId = requestDTO2.CategoryId,
+                RoomId = requestDTO2.RoomId,
+                CreatedAt = requestDTO2.CreatedAt
+            };
+
+            _mockMaintenanceRequestService
+                .Setup(s => s.ProcessMaintenanceRequestAsync(requestDTO1, command1.Message.FileBase64))
+                .ReturnsAsync(resultDTO1);
+            _mockMaintenanceRequestService
+                .Setup(s => s.ProcessMaintenanceRequestAsync(requestDTO2, command2.Message.FileBase64))
+                .ReturnsAsync(resultDTO2);
+
+            // Act
+            var result1 = await _handler.Handle(command1, CancellationToken.None);
+            var result2 = await _handler.Handle(command2, CancellationToken.None);
+
+            // Assert
+            Assert.True(result1.Succeeded);
+            Assert.Equal("Maintenance request processed successfully", result1.Message);
+            Assert.Equal(resultDTO1, result1.Data);
+            Assert.True(result2.Succeeded);
+            Assert.Equal("Maintenance request processed successfully", result2.Message);
+            Assert.Equal(resultDTO2, result2.Data);
+            _mockMaintenanceRequestService.Verify(s => s.ProcessMaintenanceRequestAsync(It.IsAny<MaintenanceRequestCommandDTO>(), It.IsAny<List<string>>()), Times.Exactly(2));
+            _mockLogger.Verify(l => l.Log(It.IsAny<LogLevel>(), It.IsAny<EventId>(), It.IsAny<It.IsAnyType>(), It.IsAny<Exception>(), It.IsAny<Func<It.IsAnyType, Exception, string>>()), Times.Never());
+        }
+
+        [Fact]
+        public void Constructor_ShouldThrowArgumentNullException_WhenMaintenanceRequestServiceIsNull()
+        {
+            // Act & Assert
+            Assert.Throws<ArgumentNullException>(() => new AssignTechnicianCommandHandler(null, _mockLogger.Object));
+        }
+
+        [Fact]
+        public void Constructor_ShouldThrowArgumentNullException_WhenLoggerIsNull()
+        {
+            // Act & Assert
+            Assert.Throws<ArgumentNullException>(() => new AssignTechnicianCommandHandler(_mockMaintenanceRequestService.Object, null));
+        }
+    }
+}
+
+//using EffiAP.Application.Commands.MaintainRequestCommand;
 //using EffiAP.Application.Handlers.MaintainRequestHandler;
 //using EffiRent.Application.Services.Rabbit;
 //using EffiAP.Application.Services.Upload.Cloudinary;
 //using EffiAP.Application.Wrappers;
-//using EffiAP.Domain.Entities;
-//using EffiAP.Domain.Models;
+//using EffiRent.Domain.Entities;
 //using EffiAP.Domain.ViewModels.MaintainRequest;
 //using EffiAP.Infrastructure.IRepositories;
 //using MediatR;
@@ -21,6 +373,13 @@
 //using System.Threading.Tasks;
 //using Xunit;
 //using Microsoft.EntityFrameworkCore;
+//using EffiRent.Application.Handlers.MaintainRequestHandler;
+//using EffiRent.Application.Services.Email;
+//using Microsoft.AspNetCore.Identity;
+//using Microsoft.Extensions.Configuration;
+//using EffiRent.Application.Services.Maintenance;
+//using Microsoft.VisualStudio.TestPlatform.Common;
+//using Microsoft.VisualStudio.TestPlatform.ObjectModel.DataCollection;
 
 //namespace EffiAP.Application.Tests.Handlers
 //{
@@ -28,43 +387,72 @@
 //    {
 //        private readonly Mock<IApplicationRoleRepository> _roleRepoMock;
 //        private readonly Mock<IApplicationUserRoleRepository> _userRoleRepoMock;
-//        private readonly Mock<IUnitOfWork> _unitOfWorkMock;
-//        private readonly Mock<IGenericRepository> _genericRepoMock;
+//        private readonly Mock<IUnitOfWork> _mockUnitOfWork;
+//        private readonly Mock<IGenericRepository> _mockRepo;
+//        private readonly Mock<IDbContextTransaction> _mockTransaction;
 //        private readonly Mock<IRabbitMQProducerService> _rabbitMQProducerMock;
 //        private readonly Mock<ICloudinaryService> _cloudinaryServiceMock;
 //        private readonly Mock<ILogger<AssignTechnicianCommandHandler>> _loggerMock;
+//        private readonly Mock<IMaintenanceRequestService> _mockMaintenanceService;
 //        private readonly AssignTechnicianCommandHandler _handler;
 
 //        public AssignTechnicianCommandHandlerTests()
 //        {
 //            _roleRepoMock = new Mock<IApplicationRoleRepository>();
 //            _userRoleRepoMock = new Mock<IApplicationUserRoleRepository>();
-//            _unitOfWorkMock = new Mock<IUnitOfWork>();
-//            _genericRepoMock = new Mock<IGenericRepository>();
+//            _mockUnitOfWork = new Mock<IUnitOfWork>();
+//            _mockRepo = new Mock<IGenericRepository>();
+//            _mockTransaction = new Mock<IDbContextTransaction>();
 //            _rabbitMQProducerMock = new Mock<IRabbitMQProducerService>();
 //            _cloudinaryServiceMock = new Mock<ICloudinaryService>();
 //            _loggerMock = new Mock<ILogger<AssignTechnicianCommandHandler>>();
 
 //            // Setup IUnitOfWork to return IGenericRepository
-//            _unitOfWorkMock.Setup(u => u.Repository).Returns(_genericRepoMock.Object);
-//            _unitOfWorkMock.Setup(u => u.BeginTransactionAsync()).ReturnsAsync(new Mock<IDbContextTransaction>().Object);
-//            _unitOfWorkMock.Setup(u => u.CommitTransactionAsync(It.IsAny<IDbContextTransaction>())).Returns(Task.CompletedTask);
-//            _unitOfWorkMock.Setup(u => u.RollbackTransactionAsync(It.IsAny<IDbContextTransaction>())).Returns(Task.CompletedTask);
-//            _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+//            //_unitOfWorkMock.Setup(u => u.Repository).Returns(_genericRepoMock.Object);
+//            //_unitOfWorkMock.Setup(u => u.BeginTransactionAsync()).ReturnsAsync(new Mock<IDbContextTransaction>().Object);
+//            //_unitOfWorkMock.Setup(u => u.CommitTransactionAsync(It.IsAny<IDbContextTransaction>())).Returns(Task.CompletedTask);
+//            //_unitOfWorkMock.Setup(u => u.RollbackTransactionAsync(It.IsAny<IDbContextTransaction>())).Returns(Task.CompletedTask);
+//            //_unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+
+//            _mockUnitOfWork.Setup(x => x.Repository).Returns(_mockRepo.Object);
+//            _mockUnitOfWork.Setup(u => u.BeginTransactionAsync(It.IsAny<CancellationToken>()))
+//                           .ReturnsAsync(_mockTransaction.Object);
 
 //            _handler = new AssignTechnicianCommandHandler(
-//                _roleRepoMock.Object,
-//                _userRoleRepoMock.Object,
-//                _unitOfWorkMock.Object,
-//                _rabbitMQProducerMock.Object,
-//                _cloudinaryServiceMock.Object,
+//                _mockMaintenanceService.Object,
 //                _loggerMock.Object);
 //        }
+
+//        //private Contract CreateContract(string tenantId, DateTime endDate, string status = "Active")
+//        //{
+//        //    return new Contract
+//        //    {
+//        //        Id = Guid.NewGuid(),
+//        //        Status = status,
+//        //        EndDate = endDate,
+//        //        TenantId = tenantId,
+//        //        TenantRoom = new TenantRoom
+//        //        {
+//        //            Room = new Room
+//        //            {
+//        //                Id = Guid.NewGuid(),
+//        //                Name = "A101",
+//        //                Location = "Building A",
+//        //                Status = Room.RoomStatus.Occupied
+//        //            }
+//        //        }
+//        //    };
+//        //}
+
+//        //private IdentityUser CreateTenant(string tenantId, string email)
+//        //{
+//        //    return new IdentityUser { Id = tenantId, Email = email };
+//        //}
 
 //        [Fact]
 //        public async Task Handle_ValidRequestWithAvailableTechnician_ReturnsSuccess()
 //        {
-//            // Arrange
+//            //Arange 
 //            var requestDto = new MaintenanceRequestCommandDTO
 //            {
 //                CustomerId = "customer1",
@@ -73,7 +461,16 @@
 //                RoomId = Guid.NewGuid(),
 //                //Description = "Test request"
 //            };
-//            var command = new AssignTechnicianCommand(requestDto);
+
+//            var rabbitMQMessageRequest = new RabbitMaintenanceMessage
+//            {
+
+//                request = requestDto,
+//                FileBase64 = ["123.jpg"],
+//                RequestId = Guid.NewGuid()
+//            };
+
+//            var command = new AssignTechnicianCommand(rabbitMQMessageRequest);
 
 //            // Mock role repository
 //            _roleRepoMock.Setup(r => r.GetTechnicianRoleIdAsync()).ReturnsAsync("technician_role_id");
@@ -84,21 +481,24 @@
 
 //            // Mock Get<MaintenanceRequest> with explicit parameters
 //            var maintenanceRequests = new List<MaintenanceRequest>();
-//            _genericRepoMock.Setup(r => r.Get<MaintenanceRequest>(It.IsAny<Expression<Func<MaintenanceRequest, bool>>>(), It.IsAny<Expression<Func<MaintenanceRequest, object>>[]>()))
+//            _mockRepo.Setup(r => r.Get<MaintenanceRequest>(It.IsAny<Expression<Func<MaintenanceRequest, bool>>>(), It.IsAny<Expression<Func<MaintenanceRequest, object>>[]>()))
 //                .Returns(maintenanceRequests.AsQueryable());
 
 //            // Mock Get<MaintenanceRequest> with null predicate and no includes
-//            _genericRepoMock.Setup(r => r.Get<MaintenanceRequest>(null, It.IsAny<Expression<Func<MaintenanceRequest, object>>[]>()))
+//            _mockRepo.Setup(r => r.Get<MaintenanceRequest>(null, It.IsAny<Expression<Func<MaintenanceRequest, object>>[]>()))
 //                .Returns(maintenanceRequests.AsQueryable());
 
 //            // Mock AddAsync for MaintenanceRequest
 //            Guid generatedId = Guid.NewGuid();
-//            _genericRepoMock.Setup(r => r.AddAsync(It.IsAny<MaintenanceRequest>()))
+//            _mockRepo.Setup(r => r.AddAsync(It.IsAny<MaintenanceRequest>()))
 //                .Callback<MaintenanceRequest>(mr => mr.Id = generatedId);
 
-//            // Mock SaveChangesAsync and transaction
-//            _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
-//            _unitOfWorkMock.Setup(u => u.CommitTransactionAsync(It.IsAny<IDbContextTransaction>())).Returns(Task.CompletedTask);
+//            // Mock transaction CommitAsync and RollbackAsync
+//            _mockTransaction.Setup(t => t.CommitAsync(It.IsAny<CancellationToken>()))
+//                           .Returns(Task.CompletedTask);
+//            _mockTransaction.Setup(t => t.RollbackAsync(It.IsAny<CancellationToken>()))
+//                           .Returns(Task.CompletedTask);
+//            _mockTransaction.Setup(t => t.Dispose());
 
 //            // Mock RabbitMQ publish
 //            _rabbitMQProducerMock.Setup(r => r.PublishAsync(It.IsAny<object>(), It.IsAny<string>(), It.IsAny<string>()))
@@ -107,394 +507,444 @@
 //            // Act
 //            var result = await _handler.Handle(command, CancellationToken.None);
 
-//            // Assert
-//            Assert.True(result.Succeeded, $"Expected Succeeded to be true, but got false. Message: {result.Message}");
-//            Assert.NotNull(result.Data);
-//            Assert.Equal(generatedId, result.Data.requestId);
-//            Assert.Equal("tech1", result.Data.TechnicianId);
-//            Assert.Equal("Pending", result.Data.Status);
-//            Assert.Equal(requestDto.Description, result.Data.Description);
-//            Assert.Equal(requestDto.CustomerId, result.Data.CustomerId);
-//            Assert.Equal(requestDto.PriorityLevel, result.Data.PriorityLevel);
-//            Assert.Equal(requestDto.CategoryId, result.Data.CategoryId);
-//            Assert.Equal(requestDto.RoomId, result.Data.RoomId);
-//            _rabbitMQProducerMock.Verify(r => r.PublishAsync(It.IsAny<object>(), "maintenance_exchange", "maintenance_request"), Times.Once());
-//            _unitOfWorkMock.Verify(r => r.CommitTransactionAsync(It.IsAny<IDbContextTransaction>()), Times.Once());
-//            _genericRepoMock.Verify(r => r.AddAsync(It.IsAny<MaintenanceRequest>()), Times.Once());
-//        }
-
-//        [Fact]
-//        public async Task Handle_NoAvailableTechnicians_ReturnsQueuedResponse()
-//        {
-//            // Arrange
-//            var requestDto = new MaintenanceRequestCommandDTO
-//            {
-//                CustomerId = "customer1",
-//                PriorityLevel = 1,
-//                CategoryId = Guid.NewGuid(),
-//                RoomId = Guid.NewGuid(),
-//                Description = "Test request"
-//            };
-//            var command = new AssignTechnicianCommand(requestDto);
-
-//            // Mock role repository
-//            _roleRepoMock.Setup(r => r.GetTechnicianRoleIdAsync()).ReturnsAsync("technician_role_id");
-
-//            // Mock user role repository
-//            _userRoleRepoMock.Setup(r => r.GetTechniciansAsync("technician_role_id"))
-//                .ReturnsAsync(new List<string> { "tech1" });
-
-//            // Mock Get<MaintenanceRequest> to return pending requests for all technicians
-//            var maintenanceRequests = new List<MaintenanceRequest>
-//            {
-//                new MaintenanceRequest { Id = Guid.NewGuid(), Status = "Pending", TechnicianId = "tech1" }
-//            };
-//            _genericRepoMock.Setup(r => r.Get<MaintenanceRequest>(It.IsAny<Expression<Func<MaintenanceRequest, bool>>>(), It.IsAny<Expression<Func<MaintenanceRequest, object>>[]>()))
-//                .Returns(maintenanceRequests.AsQueryable());
-//            _genericRepoMock.Setup(r => r.Get<MaintenanceRequest>(null, It.IsAny<Expression<Func<MaintenanceRequest, object>>[]>()))
-//                .Returns(maintenanceRequests.AsQueryable());
-
-//            // Mock RabbitMQ publish
-//            _rabbitMQProducerMock.Setup(r => r.PublishAsync(It.IsAny<object>(), It.IsAny<string>(), It.IsAny<string>()))
-//                .Returns(Task.CompletedTask);
-
-//            // Act
-//            var result = await _handler.Handle(command, CancellationToken.None);
-
-//            // Assert
-//            Assert.False(result.Succeeded);
-//            Assert.Equal("No available technicians; request has been queued.", result.Message);
-//            Assert.NotNull(result.Data);
-//            Assert.Equal(requestDto.CustomerId, result.Data.CustomerId);
-//            Assert.Equal(requestDto.PriorityLevel, result.Data.PriorityLevel);
-//            Assert.Equal(requestDto.CategoryId, result.Data.CategoryId);
-//            Assert.Equal(requestDto.RoomId, result.Data.RoomId);
-//            Assert.Equal(requestDto.Description, result.Data.Description);
-//            _rabbitMQProducerMock.Verify(r => r.PublishAsync(It.IsAny<object>(), "maintenance_exchange", "maintenance_request"), Times.Once());
-//            _genericRepoMock.Verify(r => r.AddAsync(It.IsAny<MaintenanceRequest>()), Times.Never());
-//            _unitOfWorkMock.Verify(u => u.CommitTransactionAsync(It.IsAny<IDbContextTransaction>()), Times.Never());
-//        }
-
-//        [Fact]
-//        public async Task Handle_TechnicianRoleNotFound_ReturnsError()
-//        {
-//            // Arrange
-//            var requestDto = new MaintenanceRequestCommandDTO
-//            {
-//                CustomerId = "customer1",
-//                PriorityLevel = 1,
-//                CategoryId = Guid.NewGuid(),
-//                RoomId = Guid.NewGuid(),
-//                Description = "Test request"
-//            };
-//            var command = new AssignTechnicianCommand(requestDto);
-
-//            // Mock role repository to return null
-//            _roleRepoMock.Setup(r => r.GetTechnicianRoleIdAsync()).ReturnsAsync((string)null);
-
-//            // Act
-//            var result = await _handler.Handle(command, CancellationToken.None);
-
-//            // Assert
-//            Assert.False(result.Succeeded);
-//            Assert.Equal("Technician role does not exist.", result.Message);
-//            Assert.Null(result.Data);
-//            _userRoleRepoMock.Verify(r => r.GetTechniciansAsync(It.IsAny<string>()), Times.Never());
-//            _genericRepoMock.Verify(r => r.Get<MaintenanceRequest>(It.IsAny<Expression<Func<MaintenanceRequest, bool>>>(), It.IsAny<Expression<Func<MaintenanceRequest, object>>[]>()), Times.Never());
-//            _genericRepoMock.Verify(r => r.AddAsync(It.IsAny<MaintenanceRequest>()), Times.Never());
-//            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never());
-//            _unitOfWorkMock.Verify(u => u.CommitTransactionAsync(It.IsAny<IDbContextTransaction>()), Times.Never());
-//            _rabbitMQProducerMock.Verify(r => r.PublishAsync(It.IsAny<object>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never());
-//        }
-
-//        [Fact]
-//        public async Task Handle_InvalidRequestData_ReturnsError()
-//        {
-//            // Arrange
-//            AssignTechnicianCommand command = null;
-
-//            // Act
-//            var result = await _handler.Handle(command, CancellationToken.None);
-
-//            // Assert
-//            Assert.False(result.Succeeded);
-//            Assert.Equal("Request data is null", result.Message);
-//            Assert.Null(result.Data);
-//            _roleRepoMock.Verify(r => r.GetTechnicianRoleIdAsync(), Times.Never());
-//            _userRoleRepoMock.Verify(r => r.GetTechniciansAsync(It.IsAny<string>()), Times.Never());
-//            _genericRepoMock.Verify(r => r.Get<MaintenanceRequest>(It.IsAny<Expression<Func<MaintenanceRequest, bool>>>(), It.IsAny<Expression<Func<MaintenanceRequest, object>>[]>()), Times.Never());
-//            _genericRepoMock.Verify(r => r.AddAsync(It.IsAny<MaintenanceRequest>()), Times.Never());
-//            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never());
-//            _unitOfWorkMock.Verify(u => u.CommitTransactionAsync(It.IsAny<IDbContextTransaction>()), Times.Never());
-//            _rabbitMQProducerMock.Verify(r => r.PublishAsync(It.IsAny<object>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never());
-//        }
-
-//        [Fact]
-//        public async Task Handle_ImageUploadFails_ReturnsSuccess()
-//        {
-//            // Arrange
-//            var requestDto = new MaintenanceRequestCommandDTO
-//            {
-//                CustomerId = "customer1",
-//                PriorityLevel = 1,
-//                CategoryId = Guid.NewGuid(),
-//                RoomId = Guid.NewGuid(),
-//                //Description = "Test request"
-//            };
-//            var imageMock = new Mock<IFormFile>(); // Mock ảnh
-//            var command = new AssignTechnicianCommand(requestDto) { Image = new List<IFormFile> { imageMock.Object } };
-
-//            // Mock role repository
-//            _roleRepoMock.Setup(r => r.GetTechnicianRoleIdAsync()).ReturnsAsync("technician_role_id");
-
-//            // Mock user role repository
-//            _userRoleRepoMock.Setup(r => r.GetTechniciansAsync("technician_role_id"))
-//                .ReturnsAsync(new List<string> { "tech1", "tech2" });
-
-//            // Mock Get<MaintenanceRequest> with empty list
-//            var maintenanceRequests = new List<MaintenanceRequest>();
-//            _genericRepoMock.Setup(r => r.Get<MaintenanceRequest>(It.IsAny<Expression<Func<MaintenanceRequest, bool>>>(), It.IsAny<Expression<Func<MaintenanceRequest, object>>[]>()))
-//                .Returns(maintenanceRequests.AsQueryable());
-//            _genericRepoMock.Setup(r => r.Get<MaintenanceRequest>(null, It.IsAny<Expression<Func<MaintenanceRequest, object>>[]>()))
-//                .Returns(maintenanceRequests.AsQueryable());
-
-//            // Mock AddAsync for MaintenanceRequest
-//            Guid generatedId = Guid.NewGuid();
-//            _genericRepoMock.Setup(r => r.AddAsync(It.IsAny<MaintenanceRequest>()))
-//                .Callback<MaintenanceRequest>(mr => mr.Id = generatedId)
-//                .Returns(Task.CompletedTask);
-
-//            // Mock SaveChangesAsync and transaction
-//            _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
-//            _unitOfWorkMock.Setup(u => u.BeginTransactionAsync()).ReturnsAsync(new Mock<IDbContextTransaction>().Object);
-//            _unitOfWorkMock.Setup(u => u.CommitTransactionAsync(It.IsAny<IDbContextTransaction>())).Returns(Task.CompletedTask);
-
-//            // Mock RabbitMQ publish
-//            _rabbitMQProducerMock.Setup(r => r.PublishAsync(It.IsAny<object>(), It.IsAny<string>(), It.IsAny<string>()))
-//                .Returns(Task.CompletedTask);
-
-//            // Mock Cloudinary upload to throw exception
-//            _cloudinaryServiceMock.Setup(c => c.UploadPhotoAsync(It.IsAny<IFormFile>()))
-//                .ThrowsAsync(new Exception("Failed to upload image"));
-
-//            // Act
-//            var result = await _handler.Handle(command, CancellationToken.None);
-
-//            // Assert
-//            Assert.True(result.Succeeded);
-//            Assert.Equal("Confirm request was successful", result.Message);
-//            Assert.NotNull(result.Data);
-//            Assert.Equal(generatedId, result.Data.requestId);
-//            Assert.Equal("tech1", result.Data.TechnicianId);
-//            Assert.Equal("Pending", result.Data.Status);
-//            Assert.Equal(requestDto.Description, result.Data.Description);
-//            Assert.Equal(requestDto.CustomerId, result.Data.CustomerId);
-//            Assert.Equal(requestDto.PriorityLevel, result.Data.PriorityLevel);
-//            Assert.Equal(requestDto.CategoryId, result.Data.CategoryId);
-//            Assert.Equal(requestDto.RoomId, result.Data.RoomId);
-//            _genericRepoMock.Verify(r => r.AddAsync(It.IsAny<MaintenanceRequest>()), Times.Once());
-//            _genericRepoMock.Verify(r => r.AddRangeAsync(It.IsAny<IEnumerable<MaintenanceRequestImage>>()), Times.Never());
-//            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once()); // Chỉ gọi cho MaintenanceRequest
-//            _unitOfWorkMock.Verify(u => u.CommitTransactionAsync(It.IsAny<IDbContextTransaction>()), Times.Once());
-//            _rabbitMQProducerMock.Verify(r => r.PublishAsync(It.IsAny<object>(), "maintenance_exchange", "maintenance_request"), Times.Once());
-//            _cloudinaryServiceMock.Verify(c => c.UploadPhotoAsync(It.IsAny<IFormFile>()), Times.Once());
-//        }
-
-
-//        //[Fact]
-//        //public async Task Handle_TechnicianRoleNotFound_ThrowsException()
-//        //{
-//        //    // Arrange
-//        //    var requestDto = new MaintenanceRequestCommandDTO
-//        //    {
-//        //        CustomerId = "customer1",
-//        //        PriorityLevel = 1,
-//        //        CategoryId = Guid.NewGuid(),
-//        //        RoomId = Guid.NewGuid()
-//        //    };
-//        //    var command = new AssignTechnicianCommand(requestDto);
-
-//        //    _roleRepoMock.Setup(r => r.GetTechnicianRoleIdAsync()).ReturnsAsync((string)null);
-
-//        //    // Act
-//        //    var result = await _handler.Handle(command, CancellationToken.None);
-
-//        //    // Assert
-//        //    Assert.False(result.Succeeded);
-//        //    Assert.Contains("Technician role does not exist", result.Message);
-//        //    _unitOfWorkMock.Verify(u => u.RollbackTransactionAsync(It.IsAny<IDbContextTransaction>()), Times.Once());
-//        //}
-
-//        //[Fact]
-//        //public async Task Handle_InvalidRequestData_ReturnsError()
-//        //{
-//        //    // Arrange
-//        //    AssignTechnicianCommand command = null;
-//        //    try
-//        //    {
-//        //        command = new AssignTechnicianCommand(null); // Should throw ArgumentNullException
-//        //        Assert.False(true, "Expected ArgumentNullException was not thrown.");
-//        //    }
-//        //    catch (ArgumentNullException ex)
-//        //    {
-//        //        Assert.Equal("requestDto", ex.ParamName);
-//        //    }
-
-//        //    // Act
-//        //    var result = await _handler.Handle(command, CancellationToken.None);
-
-//        //    // Assert
-//        //    Assert.False(result.Succeeded);
-//        //    Assert.Equal("Request data is null", result.Message);
-//        //    _unitOfWorkMock.Verify(u => u.BeginTransactionAsync(), Times.Never());
-//        //}
-
-//        //[Fact]
-//        //public async Task Handle_ImageUploadFails_StillReturnsSuccess()
-//        //{
-//        //    // Arrange
-//        //    var requestDto = new MaintenanceRequestCommandDTO
-//        //    {
-//        //        CustomerId = "customer1",
-//        //        PriorityLevel = 1,
-//        //        CategoryId = Guid.NewGuid(),
-//        //        RoomId = Guid.NewGuid(),
-//        //        Description = "Test request"
-//        //    };
-//        //    var images = new List<IFormFile> { new Mock<IFormFile>().Object };
-//        //    var command = new AssignTechnicianCommand(requestDto, images);
-
-//        //    _roleRepoMock.Setup(r => r.GetTechnicianRoleIdAsync()).ReturnsAsync("technician_role_id");
-//        //    _userRoleRepoMock.Setup(r => r.GetTechniciansAsync("technician_role_id")).ReturnsAsync(new List<string> { "tech1" });
-
-//        //    _genericRepoMock.Setup(r => r.Get<MaintenanceRequest>(It.IsAny<Expression<Func<MaintenanceRequest, bool>>>()))
-//        //        .Returns(new List<MaintenanceRequest>().AsQueryable());
-//        //    _genericRepoMock.Setup(r => r.AddAsync(It.IsAny<MaintenanceRequest>()))
-//        //        .Callback<MaintenanceRequest>(mr => mr.Id = Guid.NewGuid());
-
-//        //    _cloudinaryServiceMock.Setup(c => c.UploadPhotoAsync(It.IsAny<IFormFile>()))
-//        //        .ThrowsAsync(new Exception("Upload failed"));
-
-//        //    // Act
-//        //    var result = await _handler.Handle(command, CancellationToken.None);
-
-//        //    // Assert
-//        //    Assert.True(result.Succeeded);
-//        //    Assert.Equal("Confirm request was successful", result.Message);
-//        //    _loggerMock.Verify(l => l.Log(
-//        //        LogLevel.Warning,
-//        //        It.IsAny<EventId>(),
-//        //        It.IsAny<It.IsAnyType>(),
-//        //        It.IsAny<Exception>(),
-//        //        It.IsAny<Func<It.IsAnyType, Exception, string>>()), Times.Once());
-//        //    _genericRepoMock.Verify(r => r.AddRangeAsync(It.IsAny<IEnumerable<MaintenanceRequestImage>>()), Times.Never());
-//        //}
-
-//        [Fact]
-//        public async Task Handle_RabbitMQPublishFails_StillReturnsSuccess()
-//        {
-//            // Arrange
-//            var requestDto = new MaintenanceRequestCommandDTO
-//            {
-//                CustomerId = "customer1",
-//                PriorityLevel = 1,
-//                CategoryId = Guid.NewGuid(),
-//                RoomId = Guid.NewGuid(),
-//                Description = "Test request"
-//            };
-//            var command = new AssignTechnicianCommand(requestDto);
-
-//            _roleRepoMock.Setup(r => r.GetTechnicianRoleIdAsync()).ReturnsAsync("technician_role_id");
-//            _userRoleRepoMock.Setup(r => r.GetTechniciansAsync("technician_role_id")).ReturnsAsync(new List<string> { "tech1" });
-
-//            _genericRepoMock.Setup(r => r.Get<MaintenanceRequest>(It.IsAny<Expression<Func<MaintenanceRequest, bool>>>()))
-//                .Returns(new List<MaintenanceRequest>().AsQueryable());
-//            _genericRepoMock.Setup(r => r.AddAsync(It.IsAny<MaintenanceRequest>()))
-//                .Callback<MaintenanceRequest>(mr => mr.Id = Guid.NewGuid());
-
-//            _rabbitMQProducerMock.Setup(r => r.PublishAsync(It.IsAny<object>(), It.IsAny<string>(), It.IsAny<string>()))
-//                .ThrowsAsync(new Exception("RabbitMQ publish failed"));
-
-//            // Act
-//            var result = await _handler.Handle(command, CancellationToken.None);
-
-//            // Assert
-//            Assert.True(result.Succeeded);
-//            Assert.Equal("Confirm request was successful", result.Message);
-//            _loggerMock.Verify(l => l.Log(
-//                LogLevel.Error,
-//                It.IsAny<EventId>(),
-//                It.IsAny<It.IsAnyType>(),
-//                It.IsAny<Exception>(),
-//                It.IsAny<Func<It.IsAnyType, Exception, string>>()), Times.Once());
-//        }
-
-//        [Fact]
-//        public async Task Handle_MultipleTechnicians_AssignsRoundRobin()
-//        {
-//            // Arrange
-//            var requestDto = new MaintenanceRequestCommandDTO
-//            {
-//                CustomerId = "customer1",
-//                PriorityLevel = 1,
-//                CategoryId = Guid.NewGuid(),
-//                RoomId = Guid.NewGuid(),
-//                Description = "Test request"
-//            };
-//            var command = new AssignTechnicianCommand(requestDto);
-
-//            _roleRepoMock.Setup(r => r.GetTechnicianRoleIdAsync()).ReturnsAsync("technician_role_id");
-//            _userRoleRepoMock.Setup(r => r.GetTechniciansAsync("technician_role_id")).ReturnsAsync(new List<string> { "tech1", "tech2" });
-
-//            _genericRepoMock.Setup(r => r.Get<MaintenanceRequest>(It.IsAny<Expression<Func<MaintenanceRequest, bool>>>()))
-//                .Returns(new List<MaintenanceRequest>().AsQueryable());
-//            _genericRepoMock.Setup(r => r.AddAsync(It.IsAny<MaintenanceRequest>()))
-//                .Callback<MaintenanceRequest>(mr => mr.Id = Guid.NewGuid());
-
-//            // Act
-//            var result1 = await _handler.Handle(command, CancellationToken.None);
-//            var result2 = await _handler.Handle(command, CancellationToken.None);
-
-//            // Assert
-//            Assert.True(result1.Succeeded);
-//            Assert.True(result2.Succeeded);
-//            Assert.Equal("tech1", result1.Data.TechnicianId);
-//            Assert.Equal("tech2", result2.Data.TechnicianId);
-//        }
-
-//        [Fact]
-//        public async Task Handle_ConcurrentRequests_AssignsTechniciansSafely()
-//        {
-//            // Arrange
-//            var requestDto = new MaintenanceRequestCommandDTO
-//            {
-//                CustomerId = "customer1",
-//                PriorityLevel = 1,
-//                CategoryId = Guid.NewGuid(),
-//                RoomId = Guid.NewGuid(),
-//                Description = "Test request"
-//            };
-//            var command = new AssignTechnicianCommand(requestDto);
-
-//            _roleRepoMock.Setup(r => r.GetTechnicianRoleIdAsync()).ReturnsAsync("technician_role_id");
-//            _userRoleRepoMock.Setup(r => r.GetTechniciansAsync("technician_role_id")).ReturnsAsync(new List<string> { "tech1", "tech2" });
-//            _genericRepoMock.Setup(r => r.Get<MaintenanceRequest>(It.IsAny<Expression<Func<MaintenanceRequest, bool>>>()))
-//                .Returns(new List<MaintenanceRequest>().AsQueryable());
-//            _genericRepoMock.Setup(r => r.AddAsync(It.IsAny<MaintenanceRequest>()))
-//                .Callback<MaintenanceRequest>(mr => mr.Id = Guid.NewGuid());
-
-//            // Act
-//            var tasks = Enumerable.Range(0, 10).Select(_ => _handler.Handle(command, CancellationToken.None)).ToList();
-//            var results = await Task.WhenAll(tasks);
-
-//            // Assert
-//            var technicianIds = results.Select(r => r.Data.TechnicianId).Distinct().ToList();
-//            Assert.Equal(2, technicianIds.Count); // Only tech1 and tech2 should be assigned
-//            Assert.Contains("tech1", technicianIds);
-//            Assert.Contains("tech2", technicianIds);
 //        }
 //    }
 //}
+
+//        //    [Fact]
+//        //    public async Task Handle_ValidRequestWithAvailableTechnician_ReturnsSuccess()
+//        //    {
+//        //        // Arrange
+//        //        var requestDto = new MaintenanceRequestCommandDTO
+//        //        {
+//        //            CustomerId = "customer1",
+//        //            PriorityLevel = 1,
+//        //            CategoryId = Guid.NewGuid(),
+//        //            RoomId = Guid.NewGuid(),
+//        //            //Description = "Test request"
+//        //        };
+//        //        var command = new AssignTechnicianCommand(requestDto);
+
+//        //        // Mock role repository
+//        //        _roleRepoMock.Setup(r => r.GetTechnicianRoleIdAsync()).ReturnsAsync("technician_role_id");
+
+//        //        // Mock user role repository
+//        //        _userRoleRepoMock.Setup(r => r.GetTechniciansAsync("technician_role_id"))
+//        //            .ReturnsAsync(new List<string> { "tech1", "tech2" });
+
+//        //        // Mock Get<MaintenanceRequest> with explicit parameters
+//        //        var maintenanceRequests = new List<MaintenanceRequest>();
+//        //        _genericRepoMock.Setup(r => r.Get<MaintenanceRequest>(It.IsAny<Expression<Func<MaintenanceRequest, bool>>>(), It.IsAny<Expression<Func<MaintenanceRequest, object>>[]>()))
+//        //            .Returns(maintenanceRequests.AsQueryable());
+
+//        //        // Mock Get<MaintenanceRequest> with null predicate and no includes
+//        //        _genericRepoMock.Setup(r => r.Get<MaintenanceRequest>(null, It.IsAny<Expression<Func<MaintenanceRequest, object>>[]>()))
+//        //            .Returns(maintenanceRequests.AsQueryable());
+
+//        //        // Mock AddAsync for MaintenanceRequest
+//        //        Guid generatedId = Guid.NewGuid();
+//        //        _genericRepoMock.Setup(r => r.AddAsync(It.IsAny<MaintenanceRequest>()))
+//        //            .Callback<MaintenanceRequest>(mr => mr.Id = generatedId);
+
+//        //        // Mock SaveChangesAsync and transaction
+//        //        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+//        //        _unitOfWorkMock.Setup(u => u.CommitTransactionAsync(It.IsAny<IDbContextTransaction>())).Returns(Task.CompletedTask);
+
+//        //        // Mock RabbitMQ publish
+//        //        _rabbitMQProducerMock.Setup(r => r.PublishAsync(It.IsAny<object>(), It.IsAny<string>(), It.IsAny<string>()))
+//        //            .Returns(Task.CompletedTask);
+
+//        //        // Act
+//        //        var result = await _handler.Handle(command, CancellationToken.None);
+
+//        //        // Assert
+//        //        Assert.True(result.Succeeded, $"Expected Succeeded to be true, but got false. Message: {result.Message}");
+//        //        Assert.NotNull(result.Data);
+//        //        Assert.Equal(generatedId, result.Data.requestId);
+//        //        Assert.Equal("tech1", result.Data.TechnicianId);
+//        //        Assert.Equal("Pending", result.Data.Status);
+//        //        Assert.Equal(requestDto.Description, result.Data.Description);
+//        //        Assert.Equal(requestDto.CustomerId, result.Data.CustomerId);
+//        //        Assert.Equal(requestDto.PriorityLevel, result.Data.PriorityLevel);
+//        //        Assert.Equal(requestDto.CategoryId, result.Data.CategoryId);
+//        //        Assert.Equal(requestDto.RoomId, result.Data.RoomId);
+//        //        _rabbitMQProducerMock.Verify(r => r.PublishAsync(It.IsAny<object>(), "maintenance_exchange", "maintenance_request"), Times.Once());
+//        //        _unitOfWorkMock.Verify(r => r.CommitTransactionAsync(It.IsAny<IDbContextTransaction>()), Times.Once());
+//        //        _genericRepoMock.Verify(r => r.AddAsync(It.IsAny<MaintenanceRequest>()), Times.Once());
+//        //    }
+
+//        //    [Fact]
+//        //    public async Task Handle_NoAvailableTechnicians_ReturnsQueuedResponse()
+//        //    {
+//        //        // Arrange
+//        //        var requestDto = new MaintenanceRequestCommandDTO
+//        //        {
+//        //            CustomerId = "customer1",
+//        //            PriorityLevel = 1,
+//        //            CategoryId = Guid.NewGuid(),
+//        //            RoomId = Guid.NewGuid(),
+//        //            Description = "Test request"
+//        //        };
+//        //        var command = new AssignTechnicianCommand(requestDto);
+
+//        //        // Mock role repository
+//        //        _roleRepoMock.Setup(r => r.GetTechnicianRoleIdAsync()).ReturnsAsync("technician_role_id");
+
+//        //        // Mock user role repository
+//        //        _userRoleRepoMock.Setup(r => r.GetTechniciansAsync("technician_role_id"))
+//        //            .ReturnsAsync(new List<string> { "tech1" });
+
+//        //        // Mock Get<MaintenanceRequest> to return pending requests for all technicians
+//        //        var maintenanceRequests = new List<MaintenanceRequest>
+//        //        {
+//        //            new MaintenanceRequest { Id = Guid.NewGuid(), Status = "Pending", TechnicianId = "tech1" }
+//        //        };
+//        //        _genericRepoMock.Setup(r => r.Get<MaintenanceRequest>(It.IsAny<Expression<Func<MaintenanceRequest, bool>>>(), It.IsAny<Expression<Func<MaintenanceRequest, object>>[]>()))
+//        //            .Returns(maintenanceRequests.AsQueryable());
+//        //        _genericRepoMock.Setup(r => r.Get<MaintenanceRequest>(null, It.IsAny<Expression<Func<MaintenanceRequest, object>>[]>()))
+//        //            .Returns(maintenanceRequests.AsQueryable());
+
+//        //        // Mock RabbitMQ publish
+//        //        _rabbitMQProducerMock.Setup(r => r.PublishAsync(It.IsAny<object>(), It.IsAny<string>(), It.IsAny<string>()))
+//        //            .Returns(Task.CompletedTask);
+
+//        //        // Act
+//        //        var result = await _handler.Handle(command, CancellationToken.None);
+
+//        //        // Assert
+//        //        Assert.False(result.Succeeded);
+//        //        Assert.Equal("No available technicians; request has been queued.", result.Message);
+//        //        Assert.NotNull(result.Data);
+//        //        Assert.Equal(requestDto.CustomerId, result.Data.CustomerId);
+//        //        Assert.Equal(requestDto.PriorityLevel, result.Data.PriorityLevel);
+//        //        Assert.Equal(requestDto.CategoryId, result.Data.CategoryId);
+//        //        Assert.Equal(requestDto.RoomId, result.Data.RoomId);
+//        //        Assert.Equal(requestDto.Description, result.Data.Description);
+//        //        _rabbitMQProducerMock.Verify(r => r.PublishAsync(It.IsAny<object>(), "maintenance_exchange", "maintenance_request"), Times.Once());
+//        //        _genericRepoMock.Verify(r => r.AddAsync(It.IsAny<MaintenanceRequest>()), Times.Never());
+//        //        _unitOfWorkMock.Verify(u => u.CommitTransactionAsync(It.IsAny<IDbContextTransaction>()), Times.Never());
+//        //    }
+
+//        //    [Fact]
+//        //    public async Task Handle_TechnicianRoleNotFound_ReturnsError()
+//        //    {
+//        //        // Arrange
+//        //        var requestDto = new MaintenanceRequestCommandDTO
+//        //        {
+//        //            CustomerId = "customer1",
+//        //            PriorityLevel = 1,
+//        //            CategoryId = Guid.NewGuid(),
+//        //            RoomId = Guid.NewGuid(),
+//        //            Description = "Test request"
+//        //        };
+//        //        var command = new AssignTechnicianCommand(requestDto);
+
+//        //        // Mock role repository to return null
+//        //        _roleRepoMock.Setup(r => r.GetTechnicianRoleIdAsync()).ReturnsAsync((string)null);
+
+//        //        // Act
+//        //        var result = await _handler.Handle(command, CancellationToken.None);
+
+//        //        // Assert
+//        //        Assert.False(result.Succeeded);
+//        //        Assert.Equal("Technician role does not exist.", result.Message);
+//        //        Assert.Null(result.Data);
+//        //        _userRoleRepoMock.Verify(r => r.GetTechniciansAsync(It.IsAny<string>()), Times.Never());
+//        //        _genericRepoMock.Verify(r => r.Get<MaintenanceRequest>(It.IsAny<Expression<Func<MaintenanceRequest, bool>>>(), It.IsAny<Expression<Func<MaintenanceRequest, object>>[]>()), Times.Never());
+//        //        _genericRepoMock.Verify(r => r.AddAsync(It.IsAny<MaintenanceRequest>()), Times.Never());
+//        //        _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never());
+//        //        _unitOfWorkMock.Verify(u => u.CommitTransactionAsync(It.IsAny<IDbContextTransaction>()), Times.Never());
+//        //        _rabbitMQProducerMock.Verify(r => r.PublishAsync(It.IsAny<object>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never());
+//        //    }
+
+//        //    [Fact]
+//        //    public async Task Handle_InvalidRequestData_ReturnsError()
+//        //    {
+//        //        // Arrange
+//        //        AssignTechnicianCommand command = null;
+
+//        //        // Act
+//        //        var result = await _handler.Handle(command, CancellationToken.None);
+
+//        //        // Assert
+//        //        Assert.False(result.Succeeded);
+//        //        Assert.Equal("Request data is null", result.Message);
+//        //        Assert.Null(result.Data);
+//        //        _roleRepoMock.Verify(r => r.GetTechnicianRoleIdAsync(), Times.Never());
+//        //        _userRoleRepoMock.Verify(r => r.GetTechniciansAsync(It.IsAny<string>()), Times.Never());
+//        //        _genericRepoMock.Verify(r => r.Get<MaintenanceRequest>(It.IsAny<Expression<Func<MaintenanceRequest, bool>>>(), It.IsAny<Expression<Func<MaintenanceRequest, object>>[]>()), Times.Never());
+//        //        _genericRepoMock.Verify(r => r.AddAsync(It.IsAny<MaintenanceRequest>()), Times.Never());
+//        //        _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never());
+//        //        _unitOfWorkMock.Verify(u => u.CommitTransactionAsync(It.IsAny<IDbContextTransaction>()), Times.Never());
+//        //        _rabbitMQProducerMock.Verify(r => r.PublishAsync(It.IsAny<object>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never());
+//        //    }
+
+//        //    [Fact]
+//        //    public async Task Handle_ImageUploadFails_ReturnsSuccess()
+//        //    {
+//        //        // Arrange
+//        //        var requestDto = new MaintenanceRequestCommandDTO
+//        //        {
+//        //            CustomerId = "customer1",
+//        //            PriorityLevel = 1,
+//        //            CategoryId = Guid.NewGuid(),
+//        //            RoomId = Guid.NewGuid(),
+//        //            //Description = "Test request"
+//        //        };
+//        //        var imageMock = new Mock<IFormFile>(); // Mock ảnh
+//        //        var command = new AssignTechnicianCommand(requestDto) { Image = new List<IFormFile> { imageMock.Object } };
+
+//        //        // Mock role repository
+//        //        _roleRepoMock.Setup(r => r.GetTechnicianRoleIdAsync()).ReturnsAsync("technician_role_id");
+
+//        //        // Mock user role repository
+//        //        _userRoleRepoMock.Setup(r => r.GetTechniciansAsync("technician_role_id"))
+//        //            .ReturnsAsync(new List<string> { "tech1", "tech2" });
+
+//        //        // Mock Get<MaintenanceRequest> with empty list
+//        //        var maintenanceRequests = new List<MaintenanceRequest>();
+//        //        _genericRepoMock.Setup(r => r.Get<MaintenanceRequest>(It.IsAny<Expression<Func<MaintenanceRequest, bool>>>(), It.IsAny<Expression<Func<MaintenanceRequest, object>>[]>()))
+//        //            .Returns(maintenanceRequests.AsQueryable());
+//        //        _genericRepoMock.Setup(r => r.Get<MaintenanceRequest>(null, It.IsAny<Expression<Func<MaintenanceRequest, object>>[]>()))
+//        //            .Returns(maintenanceRequests.AsQueryable());
+
+//        //        // Mock AddAsync for MaintenanceRequest
+//        //        Guid generatedId = Guid.NewGuid();
+//        //        _genericRepoMock.Setup(r => r.AddAsync(It.IsAny<MaintenanceRequest>()))
+//        //            .Callback<MaintenanceRequest>(mr => mr.Id = generatedId)
+//        //            .Returns(Task.CompletedTask);
+
+//        //        // Mock SaveChangesAsync and transaction
+//        //        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+//        //        _unitOfWorkMock.Setup(u => u.BeginTransactionAsync()).ReturnsAsync(new Mock<IDbContextTransaction>().Object);
+//        //        _unitOfWorkMock.Setup(u => u.CommitTransactionAsync(It.IsAny<IDbContextTransaction>())).Returns(Task.CompletedTask);
+
+//        //        // Mock RabbitMQ publish
+//        //        _rabbitMQProducerMock.Setup(r => r.PublishAsync(It.IsAny<object>(), It.IsAny<string>(), It.IsAny<string>()))
+//        //            .Returns(Task.CompletedTask);
+
+//        //        // Mock Cloudinary upload to throw exception
+//        //        _cloudinaryServiceMock.Setup(c => c.UploadPhotoAsync(It.IsAny<IFormFile>()))
+//        //            .ThrowsAsync(new Exception("Failed to upload image"));
+
+//        //        // Act
+//        //        var result = await _handler.Handle(command, CancellationToken.None);
+
+//        //        // Assert
+//        //        Assert.True(result.Succeeded);
+//        //        Assert.Equal("Confirm request was successful", result.Message);
+//        //        Assert.NotNull(result.Data);
+//        //        Assert.Equal(generatedId, result.Data.requestId);
+//        //        Assert.Equal("tech1", result.Data.TechnicianId);
+//        //        Assert.Equal("Pending", result.Data.Status);
+//        //        Assert.Equal(requestDto.Description, result.Data.Description);
+//        //        Assert.Equal(requestDto.CustomerId, result.Data.CustomerId);
+//        //        Assert.Equal(requestDto.PriorityLevel, result.Data.PriorityLevel);
+//        //        Assert.Equal(requestDto.CategoryId, result.Data.CategoryId);
+//        //        Assert.Equal(requestDto.RoomId, result.Data.RoomId);
+//        //        _genericRepoMock.Verify(r => r.AddAsync(It.IsAny<MaintenanceRequest>()), Times.Once());
+//        //        _genericRepoMock.Verify(r => r.AddRangeAsync(It.IsAny<IEnumerable<MaintenanceRequestImage>>()), Times.Never());
+//        //        _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once()); // Chỉ gọi cho MaintenanceRequest
+//        //        _unitOfWorkMock.Verify(u => u.CommitTransactionAsync(It.IsAny<IDbContextTransaction>()), Times.Once());
+//        //        _rabbitMQProducerMock.Verify(r => r.PublishAsync(It.IsAny<object>(), "maintenance_exchange", "maintenance_request"), Times.Once());
+//        //        _cloudinaryServiceMock.Verify(c => c.UploadPhotoAsync(It.IsAny<IFormFile>()), Times.Once());
+//        //    }
+
+
+//        //    //[Fact]
+//        //    //public async Task Handle_TechnicianRoleNotFound_ThrowsException()
+//        //    //{
+//        //    //    // Arrange
+//        //    //    var requestDto = new MaintenanceRequestCommandDTO
+//        //    //    {
+//        //    //        CustomerId = "customer1",
+//        //    //        PriorityLevel = 1,
+//        //    //        CategoryId = Guid.NewGuid(),
+//        //    //        RoomId = Guid.NewGuid()
+//        //    //    };
+//        //    //    var command = new AssignTechnicianCommand(requestDto);
+
+//        //    //    _roleRepoMock.Setup(r => r.GetTechnicianRoleIdAsync()).ReturnsAsync((string)null);
+
+//        //    //    // Act
+//        //    //    var result = await _handler.Handle(command, CancellationToken.None);
+
+//        //    //    // Assert
+//        //    //    Assert.False(result.Succeeded);
+//        //    //    Assert.Contains("Technician role does not exist", result.Message);
+//        //    //    _unitOfWorkMock.Verify(u => u.RollbackTransactionAsync(It.IsAny<IDbContextTransaction>()), Times.Once());
+//        //    //}
+
+//        //    //[Fact]
+//        //    //public async Task Handle_InvalidRequestData_ReturnsError()
+//        //    //{
+//        //    //    // Arrange
+//        //    //    AssignTechnicianCommand command = null;
+//        //    //    try
+//        //    //    {
+//        //    //        command = new AssignTechnicianCommand(null); // Should throw ArgumentNullException
+//        //    //        Assert.False(true, "Expected ArgumentNullException was not thrown.");
+//        //    //    }
+//        //    //    catch (ArgumentNullException ex)
+//        //    //    {
+//        //    //        Assert.Equal("requestDto", ex.ParamName);
+//        //    //    }
+
+//        //    //    // Act
+//        //    //    var result = await _handler.Handle(command, CancellationToken.None);
+
+//        //    //    // Assert
+//        //    //    Assert.False(result.Succeeded);
+//        //    //    Assert.Equal("Request data is null", result.Message);
+//        //    //    _unitOfWorkMock.Verify(u => u.BeginTransactionAsync(), Times.Never());
+//        //    //}
+
+//        //    //[Fact]
+//        //    //public async Task Handle_ImageUploadFails_StillReturnsSuccess()
+//        //    //{
+//        //    //    // Arrange
+//        //    //    var requestDto = new MaintenanceRequestCommandDTO
+//        //    //    {
+//        //    //        CustomerId = "customer1",
+//        //    //        PriorityLevel = 1,
+//        //    //        CategoryId = Guid.NewGuid(),
+//        //    //        RoomId = Guid.NewGuid(),
+//        //    //        Description = "Test request"
+//        //    //    };
+//        //    //    var images = new List<IFormFile> { new Mock<IFormFile>().Object };
+//        //    //    var command = new AssignTechnicianCommand(requestDto, images);
+
+//        //    //    _roleRepoMock.Setup(r => r.GetTechnicianRoleIdAsync()).ReturnsAsync("technician_role_id");
+//        //    //    _userRoleRepoMock.Setup(r => r.GetTechniciansAsync("technician_role_id")).ReturnsAsync(new List<string> { "tech1" });
+
+//        //    //    _genericRepoMock.Setup(r => r.Get<MaintenanceRequest>(It.IsAny<Expression<Func<MaintenanceRequest, bool>>>()))
+//        //    //        .Returns(new List<MaintenanceRequest>().AsQueryable());
+//        //    //    _genericRepoMock.Setup(r => r.AddAsync(It.IsAny<MaintenanceRequest>()))
+//        //    //        .Callback<MaintenanceRequest>(mr => mr.Id = Guid.NewGuid());
+
+//        //    //    _cloudinaryServiceMock.Setup(c => c.UploadPhotoAsync(It.IsAny<IFormFile>()))
+//        //    //        .ThrowsAsync(new Exception("Upload failed"));
+
+//        //    //    // Act
+//        //    //    var result = await _handler.Handle(command, CancellationToken.None);
+
+//        //    //    // Assert
+//        //    //    Assert.True(result.Succeeded);
+//        //    //    Assert.Equal("Confirm request was successful", result.Message);
+//        //    //    _loggerMock.Verify(l => l.Log(
+//        //    //        LogLevel.Warning,
+//        //    //        It.IsAny<EventId>(),
+//        //    //        It.IsAny<It.IsAnyType>(),
+//        //    //        It.IsAny<Exception>(),
+//        //    //        It.IsAny<Func<It.IsAnyType, Exception, string>>()), Times.Once());
+//        //    //    _genericRepoMock.Verify(r => r.AddRangeAsync(It.IsAny<IEnumerable<MaintenanceRequestImage>>()), Times.Never());
+//        //    //}
+
+//        //    [Fact]
+//        //    public async Task Handle_RabbitMQPublishFails_StillReturnsSuccess()
+//        //    {
+//        //        // Arrange
+//        //        var requestDto = new MaintenanceRequestCommandDTO
+//        //        {
+//        //            CustomerId = "customer1",
+//        //            PriorityLevel = 1,
+//        //            CategoryId = Guid.NewGuid(),
+//        //            RoomId = Guid.NewGuid(),
+//        //            Description = "Test request"
+//        //        };
+//        //        var command = new AssignTechnicianCommand(requestDto);
+
+//        //        _roleRepoMock.Setup(r => r.GetTechnicianRoleIdAsync()).ReturnsAsync("technician_role_id");
+//        //        _userRoleRepoMock.Setup(r => r.GetTechniciansAsync("technician_role_id")).ReturnsAsync(new List<string> { "tech1" });
+
+//        //        _genericRepoMock.Setup(r => r.Get<MaintenanceRequest>(It.IsAny<Expression<Func<MaintenanceRequest, bool>>>()))
+//        //            .Returns(new List<MaintenanceRequest>().AsQueryable());
+//        //        _genericRepoMock.Setup(r => r.AddAsync(It.IsAny<MaintenanceRequest>()))
+//        //            .Callback<MaintenanceRequest>(mr => mr.Id = Guid.NewGuid());
+
+//        //        _rabbitMQProducerMock.Setup(r => r.PublishAsync(It.IsAny<object>(), It.IsAny<string>(), It.IsAny<string>()))
+//        //            .ThrowsAsync(new Exception("RabbitMQ publish failed"));
+
+//        //        // Act
+//        //        var result = await _handler.Handle(command, CancellationToken.None);
+
+//        //        // Assert
+//        //        Assert.True(result.Succeeded);
+//        //        Assert.Equal("Confirm request was successful", result.Message);
+//        //        _loggerMock.Verify(l => l.Log(
+//        //            LogLevel.Error,
+//        //            It.IsAny<EventId>(),
+//        //            It.IsAny<It.IsAnyType>(),
+//        //            It.IsAny<Exception>(),
+//        //            It.IsAny<Func<It.IsAnyType, Exception, string>>()), Times.Once());
+//        //    }
+
+//        //    [Fact]
+//        //    public async Task Handle_MultipleTechnicians_AssignsRoundRobin()
+//        //    {
+//        //        // Arrange
+//        //        var requestDto = new MaintenanceRequestCommandDTO
+//        //        {
+//        //            CustomerId = "customer1",
+//        //            PriorityLevel = 1,
+//        //            CategoryId = Guid.NewGuid(),
+//        //            RoomId = Guid.NewGuid(),
+//        //            Description = "Test request"
+//        //        };
+//        //        var command = new AssignTechnicianCommand(requestDto);
+
+//        //        _roleRepoMock.Setup(r => r.GetTechnicianRoleIdAsync()).ReturnsAsync("technician_role_id");
+//        //        _userRoleRepoMock.Setup(r => r.GetTechniciansAsync("technician_role_id")).ReturnsAsync(new List<string> { "tech1", "tech2" });
+
+//        //        _genericRepoMock.Setup(r => r.Get<MaintenanceRequest>(It.IsAny<Expression<Func<MaintenanceRequest, bool>>>()))
+//        //            .Returns(new List<MaintenanceRequest>().AsQueryable());
+//        //        _genericRepoMock.Setup(r => r.AddAsync(It.IsAny<MaintenanceRequest>()))
+//        //            .Callback<MaintenanceRequest>(mr => mr.Id = Guid.NewGuid());
+
+//        //        // Act
+//        //        var result1 = await _handler.Handle(command, CancellationToken.None);
+//        //        var result2 = await _handler.Handle(command, CancellationToken.None);
+
+//        //        // Assert
+//        //        Assert.True(result1.Succeeded);
+//        //        Assert.True(result2.Succeeded);
+//        //        Assert.Equal("tech1", result1.Data.TechnicianId);
+//        //        Assert.Equal("tech2", result2.Data.TechnicianId);
+//        //    }
+
+//        //    [Fact]
+//        //    public async Task Handle_ConcurrentRequests_AssignsTechniciansSafely()
+//        //    {
+//        //        // Arrange
+//        //        var requestDto = new MaintenanceRequestCommandDTO
+//        //        {
+//        //            CustomerId = "customer1",
+//        //            PriorityLevel = 1,
+//        //            CategoryId = Guid.NewGuid(),
+//        //            RoomId = Guid.NewGuid(),
+//        //            Description = "Test request"
+//        //        };
+//        //        var command = new AssignTechnicianCommand(requestDto);
+
+//        //        _roleRepoMock.Setup(r => r.GetTechnicianRoleIdAsync()).ReturnsAsync("technician_role_id");
+//        //        _userRoleRepoMock.Setup(r => r.GetTechniciansAsync("technician_role_id")).ReturnsAsync(new List<string> { "tech1", "tech2" });
+//        //        _genericRepoMock.Setup(r => r.Get<MaintenanceRequest>(It.IsAny<Expression<Func<MaintenanceRequest, bool>>>()))
+//        //            .Returns(new List<MaintenanceRequest>().AsQueryable());
+//        //        _genericRepoMock.Setup(r => r.AddAsync(It.IsAny<MaintenanceRequest>()))
+//        //            .Callback<MaintenanceRequest>(mr => mr.Id = Guid.NewGuid());
+
+//        //        // Act
+//        //        var tasks = Enumerable.Range(0, 10).Select(_ => _handler.Handle(command, CancellationToken.None)).ToList();
+//        //        var results = await Task.WhenAll(tasks);
+
+//        //        // Assert
+//        //        var technicianIds = results.Select(r => r.Data.TechnicianId).Distinct().ToList();
+//        //        Assert.Equal(2, technicianIds.Count); // Only tech1 and tech2 should be assigned
+//        //        Assert.Contains("tech1", technicianIds);
+//        //        Assert.Contains("tech2", technicianIds);
+//        //    }
+//        //}
+//    //}
 
 
 ////using EffiAP.Application.Commands.MaintainRequestCommand;

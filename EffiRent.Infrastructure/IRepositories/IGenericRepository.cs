@@ -19,11 +19,11 @@ namespace EffiAP.Infrastructure.IRepositories
         Task DeleteAsync<T>(Expression<Func<T, bool>> predicate) where T : class;
         //Task SaveChangesAsync();
 
-        IQueryable<T> Get<T>(Expression<Func<T, bool>> predicate) where T : class;
         Task<T> GetOneAsync<T>(Expression<Func<T, bool>> predicate) where T : class;
         IQueryable<T> GetAsync<T>(Expression<Func<T, bool>> predicate) where T : class;
 
         IQueryable<T> Get<T>(Expression<Func<T, bool>> predicate = null, params Expression<Func<T, object>>[] includes) where T : class;
+        IQueryable<T> Get<T>(Expression<Func<T, bool>> predicate) where T : class;
 
         Task<bool> ExistsAsync<T>(int id) where T : class;
         //Task<bool> SaveAsync();

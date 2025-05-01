@@ -1,6 +1,6 @@
 ﻿using EffiAP.Application.Commands.BranchCommand;
 using EffiAP.Application.Queries.IQueries;
-using EffiAP.Domain.Entities;
+using EffiRent.Domain.Entities;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using System;

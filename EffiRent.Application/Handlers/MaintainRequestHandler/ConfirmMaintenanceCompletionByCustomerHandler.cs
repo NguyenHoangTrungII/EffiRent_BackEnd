@@ -1,8 +1,7 @@
 ﻿using EffiAP.Application.Commands.MaintainRequestCommand;
 using EffiAP.Application.Services.Messaging;
 using EffiAP.Application.Wrappers;
-using EffiAP.Domain.Entities;
-using EffiAP.Domain.Models;
+using EffiRent.Domain.Entities;
 using EffiAP.Domain.ViewModels.MaintainRequest;
 using EffiAP.Infrastructure.IRepositories;
 using MediatR;
@@ -32,7 +31,7 @@ namespace EffiAP.Application.Handlers.MaintainRequestHandler
             {
                 // Lấy yêu cầu bảo trì
                 var maintenanceRequest = await _unitOfWork.Repository.Get<MaintenanceRequest>(mr => mr.Id == command.MaintenanceRequestId)
-                                .Include(mr => mr.Feedbacks) 
+                                .Include(mr => mr.Feedbacks)
                                 .FirstOrDefaultAsync();
 
                 if (maintenanceRequest == null)
@@ -44,7 +43,7 @@ namespace EffiAP.Application.Handlers.MaintainRequestHandler
                 }
 
                 // Kiểm tra xem yêu cầu đã được nhân viên xác nhận chưa
-                if (!maintenanceRequest.TechnicianConfirmed) 
+                if (!maintenanceRequest.TechnicianConfirmed)
                 {
                     return new ApiResponse<ConfirmMaintenanceCompletionByCustomerDTO>("The maintenance request has not been confirmed by the technician.")
                     {
@@ -73,7 +72,7 @@ namespace EffiAP.Application.Handlers.MaintainRequestHandler
 
                 // Lưu các thay đổi và cam kết transaction
                 await _unitOfWork.SaveEntitiesAsync();
-                await _unitOfWork.CommitTransactionAsync(transaction);
+                await _unitOfWork.CommitAsync(transaction);
 
                 return new ApiResponse<ConfirmMaintenanceCompletionByCustomerDTO>("Confirm request was success")
                 {
@@ -83,7 +82,7 @@ namespace EffiAP.Application.Handlers.MaintainRequestHandler
             catch (Exception)
             {
                 // Nếu có lỗi xảy ra, rollback transaction
-                await _unitOfWork.RollbackTransaction();
+                await _unitOfWork.RollbackAsync(transaction);
                 return new ApiResponse<ConfirmMaintenanceCompletionByCustomerDTO>("Something go wrong ! Try again")
                 {
                     Succeeded = false,

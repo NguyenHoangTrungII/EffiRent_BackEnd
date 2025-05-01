@@ -1,11 +1,11 @@
-﻿using EffiAP.Domain.Models;
+﻿//using EffiAP.Domain.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace EffiAP.Domain.Entities
+namespace EffiRent.Domain.Entities
 {
     public class MaintenanceRequestImage
     {
